@@ -1,0 +1,46 @@
+.app {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background-color: #f9fafb;
+}
+
+.card {
+  width: 100%;
+  max-width: 28rem;
+  padding: 2rem;
+  border-radius: 0.75rem;
+  background-color: #fff;
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 0.1),
+    0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+.card-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.status {
+  margin: 1rem 0 0;
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+.status-ok {
+  font-weight: 500;
+  color: #16a34a;
+}
+
+.status-error {
+  font-weight: 500;
+  color: #dc2626;
+}
+
+.status-pending {
+  color: #9ca3af;
+}
