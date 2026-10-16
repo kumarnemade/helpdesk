@@ -5,10 +5,10 @@ export function HomePage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-gray-900">
+      <h1 className="text-2xl font-semibold">
         Welcome, {session?.user.name}
       </h1>
-      <p className="mt-2 text-sm text-gray-600">You're signed in to Helpdesk.</p>
+      <p className="mt-2 text-sm text-muted-foreground">You're signed in to Helpdesk.</p>
     </div>
   )
 }

@@ -2,6 +2,11 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./db";
 
+const clientOrigin = process.env.CLIENT_ORIGIN;
+if (!clientOrigin) {
+  throw new Error("CLIENT_ORIGIN is not set");
+}
+
 // Sessions are stored in the `session` table (no cookie cache), so every
 // getSession call is checked against the database.
 export const auth = betterAuth({
@@ -19,7 +24,8 @@ export const auth = betterAuth({
       },
     },
   },
-  trustedOrigins: [process.env.CLIENT_ORIGIN ?? "http://localhost:5173"],
+  trustedOrigins: [clientOrigin],
 });
 
 export type AuthSession = typeof auth.$Infer.Session;
+
