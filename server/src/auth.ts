@@ -8,6 +8,17 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   // Public sign-up is off: users are created by an admin (Phase 3).
   emailAndPassword: { enabled: true, disableSignUp: true },
+  user: {
+    additionalFields: {
+      // Server-owned: input: false stops clients from setting their own role.
+      role: {
+        type: ["admin", "agent"],
+        required: false,
+        defaultValue: "agent",
+        input: false,
+      },
+    },
+  },
   trustedOrigins: [process.env.CLIENT_ORIGIN ?? "http://localhost:5173"],
 });
 

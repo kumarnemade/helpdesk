@@ -11,6 +11,7 @@
     "db:generate": "bun --bun prisma generate",
     "db:migrate": "bun --bun prisma migrate dev",
     "db:studio": "bun --bun prisma studio",
+    "db:seed": "bun --bun prisma db seed",
     "postinstall": "bun --bun prisma generate"
   },
   "dependencies": {

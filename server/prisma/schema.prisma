@@ -12,12 +12,18 @@ datasource db {
 
 // Better Auth core models: https://www.better-auth.com/docs/concepts/database
 
+enum Role {
+  admin
+  agent
+}
+
 model User {
   id            String    @id
   name          String
   email         String
   emailVerified Boolean   @default(false)
   image         String?
+  role          Role      @default(agent)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      Session[]

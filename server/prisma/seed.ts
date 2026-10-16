@@ -1,0 +1,34 @@
+// Seeds the admin user. Run with `bun run db:seed` from server/.
+// Public sign-up is disabled, so the user is created through Better Auth's
+// internal adapter, which hashes the password the same way sign-in expects.
+import { auth } from "../src/auth";
+import { prisma } from "../src/db";
+
+const email = process.env.SEED_ADMIN_EMAIL;
+const password = process.env.SEED_ADMIN_PASSWORD;
+if (!email || !password) {
+  throw new Error(
+    "SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD must be set (see server/.env.example)",
+  );
+}
+
+const ctx = await auth.$context;
+
+const existing = await ctx.internalAdapter.findUserByEmail(email);
+if (existing) {
+  console.log(`Admin ${email} already exists, skipping.`);
+} else {
+  const user = await ctx.internalAdapter.createUser(
+    { email, name: "Admin", emailVerified: true, role: "admin" },
+    { method: "admin" },
+  );
+  await ctx.internalAdapter.linkAccount({
+    providerId: "credential",
+    accountId: user.id,
+    userId: user.id,
+    password: await ctx.password.hash(password),
+  });
+  console.log(`Created admin ${email}.`);
+}
+
+await prisma.$disconnect();

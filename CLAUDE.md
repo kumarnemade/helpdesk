@@ -32,6 +32,7 @@ Database (PostgreSQL `helpdesk` on localhost:5432; `DATABASE_URL` in `server/.en
 - `bun run db:migrate` — create and apply a migration after editing `schema.prisma` (Prisma 7 does **not** regenerate the client; run `db:generate` afterwards)
 - `bun run db:generate` — regenerate the Prisma client (also runs on `bun install`)
 - `bun run db:studio` — open Prisma Studio
+- `bun run db:seed` — create the admin user from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (`prisma/seed.ts`; safe to re-run)
 
 Always run Prisma through these scripts (`bun --bun prisma ...`) so Bun loads `.env`. Keep `prisma`, `@prisma/client` and `@prisma/adapter-pg` on the same exact version.
 
