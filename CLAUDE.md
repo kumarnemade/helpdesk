@@ -15,6 +15,7 @@ Bun workspaces monorepo:
 
 - `server/` — Express 5 + TypeScript, run directly by Bun (no compile step). Entry `src/index.ts`, app setup in `src/app.ts`, routers in `src/routes/`. All API routes live under `/api`.
 - `server/prisma/` — Prisma 7 schema and migrations; config in `server/prisma.config.ts`. The client is generated into `server/src/generated/prisma` (git-ignored) and connects through the `@prisma/adapter-pg` driver adapter. Import the shared instance from `server/src/db.ts`; never create another `PrismaClient`.
+- Auth — Better Auth (email/password, database sessions) configured in `server/src/auth.ts`; its handler is mounted at `/api/auth/*splat` **before** `express.json()`. Protect routes with `requireAuth` (`server/src/middleware/requireAuth.ts`), which puts `user`/`session` on `res.locals`. Auth tables (`user`, `session`, `account`, `verification`) are in `schema.prisma`; Better Auth checks them against the generated client at startup.
 - `client/` — React 19 + TypeScript + Vite 8, Tailwind CSS v4 (via `@tailwindcss/vite`). Component styles may also use plain CSS files (e.g. `App.css`).
 
 ## Commands
@@ -28,7 +29,7 @@ Run from the repo root:
 
 Database (PostgreSQL `helpdesk` on localhost:5432; `DATABASE_URL` in `server/.env`, template in `server/.env.example`), run from `server/`:
 
-- `bun run db:migrate` — create and apply a migration after editing `schema.prisma` (also regenerates the client)
+- `bun run db:migrate` — create and apply a migration after editing `schema.prisma` (Prisma 7 does **not** regenerate the client; run `db:generate` afterwards)
 - `bun run db:generate` — regenerate the Prisma client (also runs on `bun install`)
 - `bun run db:studio` — open Prisma Studio
 

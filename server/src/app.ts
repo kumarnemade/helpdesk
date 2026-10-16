@@ -1,11 +1,19 @@
 import express, { type ErrorRequestHandler } from "express";
+import { toNodeHandler } from "better-auth/node";
+import { auth } from "./auth";
+import { requireAuth } from "./middleware/requireAuth";
 import { healthRouter } from "./routes/health";
+import { meRouter } from "./routes/me";
 
 export const app = express();
+
+// Must be mounted before express.json(), which would consume the request body.
+app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json());
 
 app.use("/api/health", healthRouter);
+app.use("/api/me", requireAuth, meRouter);
 
 // 404 for unmatched API routes
 app.use("/api", (req, res) => {
