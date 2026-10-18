@@ -17,7 +17,15 @@ export default defineConfig({
     baseURL: CLIENT_URL,
     trace: "on-first-retry",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "setup", testMatch: /.*\.setup\.ts/ },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      testIgnore: /.*\.setup\.ts/,
+      dependencies: ["setup"],
+    },
+  ],
   // Never reuse running servers: the API command resets the test database
   // before starting, so every run begins from a fresh, seeded schema.
   webServer: [

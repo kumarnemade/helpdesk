@@ -37,4 +37,31 @@ if (existing) {
   console.log(`Created admin ${email}.`);
 }
 
+// Optional agent user (used by the e2e tests). No-op when the vars are unset.
+const agentEmail = process.env.SEED_AGENT_EMAIL;
+const agentPassword = process.env.SEED_AGENT_PASSWORD;
+if (agentEmail && agentPassword) {
+  if (agentPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(
+      `SEED_AGENT_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters`,
+    );
+  }
+  const existingAgent = await ctx.internalAdapter.findUserByEmail(agentEmail);
+  if (existingAgent) {
+    console.log(`Agent ${agentEmail} already exists, skipping.`);
+  } else {
+    const agent = await ctx.internalAdapter.createUser(
+      { email: agentEmail, name: "Agent", emailVerified: true, role: "agent" },
+      { method: "admin" },
+    );
+    await ctx.internalAdapter.linkAccount({
+      providerId: "credential",
+      accountId: agent.id,
+      userId: agent.id,
+      password: await ctx.password.hash(agentPassword),
+    });
+    console.log(`Created agent ${agentEmail}.`);
+  }
+}
+
 await prisma.$disconnect();
