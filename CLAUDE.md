@@ -18,7 +18,7 @@ Bun workspaces monorepo:
 - Auth — Better Auth (email/password, database sessions) configured in `server/src/auth.ts`; its handler is mounted at `/api/auth/*splat` **before** `express.json()`. `trustedOrigins` comes from the required `CLIENT_ORIGIN` env var (the server throws at startup if it's missing). Protect routes with `requireAuth` (`server/src/middleware/requireAuth.ts`), which puts `user`/`session` on `res.locals`; mount `requireRole('admin')` (`server/src/middleware/requireRole.ts`) after it on admin routes. Startup also requires `BETTER_AUTH_SECRET` (32+ chars). Passwords must be 12+ characters (`MIN_PASSWORD_LENGTH`). Rate limiting is on only when `NODE_ENV=production` and is stored in the `rateLimit` table (sign-in: 5/min per IP). The client IP comes from Express's `req.ip`, so set `TRUST_PROXY` when the API runs behind a proxy. Responses go through `helmet`; error bodies contain only the standard status text. Auth tables (`user`, `session`, `account`, `verification`) are in `schema.prisma`; Better Auth checks them against the generated client at startup. Public sign-up is disabled (`disableSignUp`) — users are created by an admin (the first one via `db:seed`). Users have a server-owned `role` field (`admin` | `agent`, default `agent`, `input: false` so clients can't set it).
 - Client auth — `authClient` (Better Auth React client) in `client/src/lib/auth-client.ts`, no `baseURL` so it calls `/api/auth` on the same origin; `inferAdditionalFields` exposes `role` on the session user. `/login` is `LoginPage`; all other routes are wrapped in `ProtectedLayout`, which redirects to `/login` when there's no session. Admin-only pages (e.g. `/users`) are nested inside `AdminRoute` (`client/src/components/AdminRoute.tsx`) within `ProtectedLayout`, which redirects non-admins to `/`; `NavBar` shows admin links only when `user.role === 'admin'`. This is UI gating only — admin API routes must also check the role server-side.
 - `client/` — React 19 + TypeScript + Vite 8, Tailwind CSS v4 (via `@tailwindcss/vite`). UI components from shadcn/ui (default `radix-nova` style, neutral theme; config in `client/components.json`) live in `src/components/ui/` — add more with `bunx --bun shadcn@latest add <name>` from `client/`. Style with Tailwind utility classes and the theme tokens (`bg-background`, `text-muted-foreground`, `text-destructive`, …) rather than raw colors; no custom CSS files or inline `style`. `src/index.css` holds only the shadcn theme. Import via the `@/` alias (→ `client/src`).
-- `e2e/` — Playwright end-to-end tests (`e2e/tests/`, config `e2e/playwright.config.ts`, Chromium only). Playwright starts its own stack on separate ports so it can run alongside `bun run dev`: the API on :3001 (`bun run test:server` in `server/`, with `NODE_ENV=test` so Bun loads `server/.env.test` over `.env`) and the client on :5174 (Vite proxies `/api` to the `API_URL` env var, falling back to :3000). The test API uses its own database, `helpdesk_test`, which `db:test:reset` wipes, migrates and seeds at the start of every run; servers are never reused. Rate limiting is off (production only).
+- `e2e/` — Playwright end-to-end tests. Setup, commands and test conventions are in `.claude/agents/e2e-test-writer.md`.
 
 ## Commands
 
@@ -28,7 +28,6 @@ Run from the repo root:
 - `bun run dev` — start API (http://localhost:3000) and client (http://localhost:5173) in watch mode
 - `bun run typecheck` — type-check both packages
 - `bun run build` — build both packages
-- `bun run test:e2e` — run the Playwright tests (first time: `bunx playwright install chromium`, and copy `server/.env.test.example` to `server/.env.test`). Open the UI with `bun run --cwd e2e test:ui`.
 
 Database (PostgreSQL `helpdesk` on localhost:5432; `DATABASE_URL` in `server/.env`, template in `server/.env.example`), run from `server/`:
 
@@ -36,7 +35,6 @@ Database (PostgreSQL `helpdesk` on localhost:5432; `DATABASE_URL` in `server/.en
 - `bun run db:generate` — regenerate the Prisma client (also runs on `bun install`)
 - `bun run db:studio` — open Prisma Studio
 - `bun run db:seed` — create the admin user from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (`prisma/seed.ts`; safe to re-run)
-- `bun run db:test:reset` — wipe, migrate and seed `helpdesk_test` (`prisma/reset-test-db.ts`). It refuses unless `NODE_ENV=test` and the database name ends in `_test`. Prisma blocks `migrate reset` when an AI agent runs it, so an agent needs the user's explicit consent each time before running this or `test:e2e`.
 
 Always run Prisma through these scripts (`bun --bun prisma ...`) so Bun loads `.env`. Keep `prisma`, `@prisma/client` and `@prisma/adapter-pg` on the same exact version.
 
@@ -49,3 +47,10 @@ Add a dependency to one workspace: `bun add <pkg> --cwd server` (or `--cwd clien
 - Forms use React Hook Form with a Zod schema via `zodResolver` (see `client/src/pages/LoginPage.tsx`): infer the values type with `z.infer`, set `noValidate` on the `<form>` so Zod owns validation, show field errors under each input with `aria-invalid`, and report server errors with `setError('root', …)`. Zod is v4 — use top-level formats like `z.email()`.
 - Express 5 forwards rejected promises from async handlers to the error handler — no try/catch wrappers needed. Errors return JSON `{ error }`; 5xx responses hide internal details.
 - Server TypeScript is strict with `noUncheckedIndexedAccess`; keep `bun run typecheck` passing.
+
+## Testing
+
+- Use the `e2e-test-writer` subagent (`.claude/agents/e2e-test-writer.md`) to write or update Playwright E2E tests rather than writing them in the main session; it holds the test setup and conventions. Launch it when the user asks for tests and after finishing a significant page, user flow or role-gated feature.
+- In the prompt, name the feature or flow to cover and the files involved (pages, routes, endpoints) so it doesn't have to rediscover them.
+- Running the tests resets `helpdesk_test`, which Prisma blocks for AI agents, and the subagent can't ask the user. Before launching it, ask the user whether it may run the tests. If they agree, include their exact reply in the prompt as consent for `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION`. Otherwise tell it not to run them; it will only type-check and list the tests, and the user runs `bun run test:e2e`.
+- When it finishes, report whether the tests were actually run and passed, and pass on any `data-testid` or source changes it suggests.
