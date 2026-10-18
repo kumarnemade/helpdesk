@@ -1,7 +1,7 @@
 // Seeds the admin user. Run with `bun run db:seed` from server/.
 // Public sign-up is disabled, so the user is created through Better Auth's
 // internal adapter, which hashes the password the same way sign-in expects.
-import { auth } from "../src/auth";
+import { auth, MIN_PASSWORD_LENGTH } from "../src/auth";
 import { prisma } from "../src/db";
 
 const email = process.env.SEED_ADMIN_EMAIL;
@@ -9,6 +9,12 @@ const password = process.env.SEED_ADMIN_PASSWORD;
 if (!email || !password) {
   throw new Error(
     "SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD must be set (see server/.env.example)",
+  );
+}
+// The internal adapter skips Better Auth's password checks, so enforce them here.
+if (password === "CHANGE_ME" || password.length < MIN_PASSWORD_LENGTH) {
+  throw new Error(
+    `SEED_ADMIN_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters and not the placeholder`,
   );
 }
 

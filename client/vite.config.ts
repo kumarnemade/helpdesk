@@ -13,7 +13,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://localhost:3000',
+      // API_URL is set by the e2e config to point at the test API.
+      '/api': process.env.API_URL ?? 'http://localhost:3000',
     },
   },
 })

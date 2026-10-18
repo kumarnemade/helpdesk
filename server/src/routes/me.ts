@@ -3,5 +3,7 @@ import { Router } from "express";
 export const meRouter = Router();
 
 meRouter.get("/", (_req, res) => {
-  res.json({ user: res.locals.user });
+  // Explicit fields so new user columns aren't exposed by default.
+  const { id, name, email, image, role } = res.locals.user;
+  res.json({ user: { id, name, email, image, role } });
 });
