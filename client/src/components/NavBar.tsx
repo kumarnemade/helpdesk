@@ -16,9 +16,16 @@ export function NavBar({ user }: { user: SessionUser }) {
   return (
     <header className="border-b bg-background">
       <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-        <Link to="/" className="text-lg font-semibold">
-          Helpdesk
-        </Link>
+        <div className="flex items-center gap-6">
+          <Link to="/" className="text-lg font-semibold">
+            Helpdesk
+          </Link>
+          {user.role === 'admin' && (
+            <Link to="/users" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+              Users
+            </Link>
+          )}
+        </div>
         <div className="flex items-center gap-4">
           <span className="text-sm font-medium text-muted-foreground">{user.name}</span>
           <Button variant="outline" onClick={handleSignOut} disabled={signingOut}>
