@@ -237,3 +237,124 @@ test.describe("GET /api/users", () => {
     });
   });
 });
+
+// Unique per call so tests never collide on the shared test DB or on retries.
+function uniqueEmail(prefix = "newuser"): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
+}
+const VALID_PASSWORD = "a-valid-password-123";
+
+test.describe("POST /api/users", () => {
+  test("returns 401 JSON without a session", async ({ request }) => {
+    const res = await request.post("/api/users", {
+      data: { name: "No Session", email: uniqueEmail(), password: VALID_PASSWORD },
+    });
+    expect(res.status()).toBe(401);
+    expect(await res.json()).toEqual({ error: "Unauthorized" });
+  });
+
+  test.describe("as agent", () => {
+    test.use({ storageState: AGENT_STATE });
+    test("returns 403 Forbidden", async ({ request }) => {
+      const res = await request.post("/api/users", {
+        data: { name: "Agent Attempt", email: uniqueEmail("agent-attempt"), password: VALID_PASSWORD },
+      });
+      expect(res.status()).toBe(403);
+      expect(await res.json()).toEqual({ error: "Forbidden" });
+    });
+  });
+
+  test.describe("as admin", () => {
+    test.use({ storageState: ADMIN_STATE });
+
+    test("returns 400 for a name shorter than 3 characters", async ({ request }) => {
+      const res = await request.post("/api/users", {
+        data: { name: "  ab  ", email: uniqueEmail(), password: VALID_PASSWORD },
+      });
+      expect(res.status()).toBe(400);
+      expect(await res.json()).toEqual({ error: "Name must be at least 3 characters" });
+    });
+
+    test("returns 400 for an invalid email", async ({ request }) => {
+      const res = await request.post("/api/users", {
+        data: { name: "Valid Name", email: "not-an-email", password: VALID_PASSWORD },
+      });
+      expect(res.status()).toBe(400);
+      expect(await res.json()).toEqual({ error: "Enter a valid email address" });
+    });
+
+    test("returns 400 for a password shorter than 12 characters", async ({ request }) => {
+      const res = await request.post("/api/users", {
+        data: { name: "Valid Name", email: uniqueEmail(), password: "short-11-ch" },
+      });
+      expect(res.status()).toBe(400);
+      expect(await res.json()).toEqual({ error: "Password must be at least 12 characters" });
+    });
+
+    test("returns 409 for a duplicate of a fixture user's email", async ({ request }) => {
+      const res = await request.post("/api/users", {
+        data: { name: "Duplicate", email: agent.email, password: VALID_PASSWORD },
+      });
+      expect(res.status()).toBe(409);
+      expect(await res.json()).toEqual({ error: "A user with this email already exists" });
+    });
+
+    test("returns 409 for a duplicate with different case and surrounding whitespace", async ({ request }) => {
+      const res = await request.post("/api/users", {
+        data: { name: "Duplicate", email: `  ${agent.email.toUpperCase()}  `, password: VALID_PASSWORD },
+      });
+      expect(res.status()).toBe(409);
+      expect(await res.json()).toEqual({ error: "A user with this email already exists" });
+    });
+
+    test("creates an agent and returns exactly the whitelisted fields", async ({ request }) => {
+      const email = uniqueEmail("created");
+      const res = await request.post("/api/users", {
+        data: { name: "  Created User  ", email: `  ${email.toUpperCase()}  `, password: VALID_PASSWORD },
+      });
+      expect(res.status()).toBe(201);
+      const body = await res.json();
+      expect(Object.keys(body)).toEqual(["user"]);
+      expect(Object.keys(body.user).sort()).toEqual(["createdAt", "email", "id", "name", "role"]);
+      expect(body.user).toMatchObject({ name: "Created User", email, role: "agent" });
+      expect(Number.isNaN(Date.parse(body.user.createdAt))).toBe(false);
+      expect(JSON.stringify(body).toLowerCase()).not.toContain("password");
+    });
+
+    test("ignores a client-supplied role", async ({ request }) => {
+      const res = await request.post("/api/users", {
+        data: { name: "Sneaky Admin", email: uniqueEmail("sneaky"), password: VALID_PASSWORD, role: "admin" },
+      });
+      expect(res.status()).toBe(201);
+      expect((await res.json()).user.role).toBe("agent");
+    });
+
+    test("the new user can sign in immediately but gets 403 on GET /api/users", async ({ request, playwright, baseURL }) => {
+      const email = uniqueEmail("signin");
+      const create = await request.post("/api/users", {
+        data: { name: "Sign In User", email, password: VALID_PASSWORD },
+      });
+      expect(create.status()).toBe(201);
+
+      // Fresh context so the admin cookies from storageState are not reused.
+      const ctx = await playwright.request.newContext({ baseURL });
+      try {
+        const login = await ctx.post("/api/auth/sign-in/email", {
+          headers: { origin: CLIENT_ORIGIN },
+          data: { email, password: VALID_PASSWORD },
+        });
+        expect(login.status()).toBe(200);
+        expect(login.headers()["set-cookie"] ?? "").toContain("better-auth.session_token=");
+
+        const me = await (await ctx.get("/api/me")).json();
+        expect(me.user).toMatchObject({ email, role: "agent" });
+
+        const users = await ctx.get("/api/users");
+        expect(users.status()).toBe(403);
+        expect(await users.json()).toEqual({ error: "Forbidden" });
+      } finally {
+        await ctx.dispose();
+      }
+    });
+  });
+});

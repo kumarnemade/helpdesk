@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "core";
 import { prisma } from "./db";
 
 const clientOrigin = process.env.CLIENT_ORIGIN;
@@ -16,8 +17,6 @@ if (!secret || secret === "CHANGE_ME" || secret.length < 32) {
   );
 }
 
-export const MIN_PASSWORD_LENGTH = 12;
-
 // Set by app.ts from Express's req.ip (which honours TRUST_PROXY), after
 // discarding any client-supplied value, so rate limiting can't be dodged by
 // spoofing X-Forwarded-For.
@@ -32,6 +31,7 @@ export const auth = betterAuth({
     enabled: true,
     disableSignUp: true,
     minPasswordLength: MIN_PASSWORD_LENGTH,
+    maxPasswordLength: MAX_PASSWORD_LENGTH,
   },
   user: {
     additionalFields: {

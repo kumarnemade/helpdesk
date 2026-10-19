@@ -1,7 +1,7 @@
 {
   "name": "helpdesk",
   "private": true,
-  "workspaces": ["client", "server", "e2e"],
+  "workspaces": ["core", "client", "server", "e2e"],
   "scripts": {
     "dev": "bun --filter '*' dev",
     "build": "bun --filter '*' build",
