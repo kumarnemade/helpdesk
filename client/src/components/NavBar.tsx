@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { authClient, type SessionUser } from '@/lib/auth-client'
+import { queryClient } from '@/lib/query-client'
 
 export function NavBar({ user }: { user: SessionUser }) {
   const navigate = useNavigate()
@@ -10,6 +11,8 @@ export function NavBar({ user }: { user: SessionUser }) {
   async function handleSignOut() {
     setSigningOut(true)
     await authClient.signOut()
+    // Drop cached server data so the next user never sees the previous one's.
+    queryClient.clear()
     navigate('/login', { replace: true })
   }
 

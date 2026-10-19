@@ -4,7 +4,7 @@ AI-powered ticket management system. See `project-scope.md` for features, `tech-
 
 ## Documentation
 
-Always use the Context7 MCP server to fetch up-to-date documentation before writing or changing code that uses a library, framework, SDK, API, or CLI tool (Bun, Express, React, Vite, Tailwind, shadcn/ui, React Router, React Hook Form, Zod, Prisma, Anthropic SDK, SendGrid/Mailgun, Docker, etc.) — even when you think you know the API. Versions in this project are recent and may differ from training data.
+Always use the Context7 MCP server to fetch up-to-date documentation before writing or changing code that uses a library, framework, SDK, API, or CLI tool (Bun, Express, React, Vite, Tailwind, shadcn/ui, React Router, React Hook Form, Zod, TanStack Query, axios, Prisma, Anthropic SDK, SendGrid/Mailgun, Docker, etc.) — even when you think you know the API. Versions in this project are recent and may differ from training data.
 
 1. `resolve-library-id` with the library name to get its `/org/project` ID (use a version-specific ID when one matches `package.json`).
 2. `query-docs` with that ID, one concept per query.
@@ -27,6 +27,7 @@ Run from the repo root:
 - `bun install` — install all workspace deps (Bun uses isolated installs; each workspace has its own `node_modules`)
 - `bun run dev` — start API (http://localhost:3000) and client (http://localhost:5173) in watch mode
 - `bun run typecheck` — type-check both packages
+- `bun run test` — run client component tests (Vitest)
 - `bun run build` — build both packages
 
 Database (PostgreSQL `helpdesk` on localhost:5432; `DATABASE_URL` in `server/.env`, template in `server/.env.example`), run from `server/`:
@@ -43,12 +44,36 @@ Add a dependency to one workspace: `bun add <pkg> --cwd server` (or `--cwd clien
 ## Conventions
 
 - Use Bun, not npm/yarn/pnpm or node.
-- Client calls the API with relative `/api/...` paths; Vite proxies `/api` to `localhost:3000` in dev.
+- Always use `axios` with TanStack Query for client API calls — never raw `fetch` or `useEffect` + `useState` data loading (see `client/src/pages/UsersPage.tsx`). Reads use `useQuery` with a descriptive `queryKey` (e.g. `['users']`) and pass the query function's `signal` to axios so stale requests are cancelled; writes use `useMutation` and invalidate the affected query keys on success. Call relative `/api/...` paths; Vite proxies `/api` to `localhost:3000` in dev. Use the shared `queryClient` (`client/src/lib/query-client.ts`, provided in `main.tsx`) — don't create another; it doesn't retry 4xx responses, retries others once, and is cleared on sign-out. (Better Auth calls still go through `authClient`.)
 - Forms use React Hook Form with a Zod schema via `zodResolver` (see `client/src/pages/LoginPage.tsx`): infer the values type with `z.infer`, set `noValidate` on the `<form>` so Zod owns validation, show field errors under each input with `aria-invalid`, and report server errors with `setError('root', …)`. Zod is v4 — use top-level formats like `z.email()`.
 - Express 5 forwards rejected promises from async handlers to the error handler — no try/catch wrappers needed. Errors return JSON `{ error }`; 5xx responses hide internal details.
 - Server TypeScript is strict with `noUncheckedIndexedAccess`; keep `bun run typecheck` passing.
 
 ## Testing
+
+### Component tests (client)
+
+Stack: Vitest + jsdom + React Testing Library, configured in the `test` block of `client/vite.config.ts`. `client/src/test/setup.ts` loads the jest-dom matchers (`toBeInTheDocument`, `toHaveTextContent`, …) and runs `cleanup` after each test. Reference example: `client/src/pages/UsersPage.test.tsx`.
+
+When to write them: add or update component tests in the main session whenever you create or change a page or component with its own logic (data loading, conditional rendering, form validation, role-dependent UI). Component tests cover a single component's states with the API mocked; full user flows across the real server belong in E2E tests.
+
+Writing them:
+
+- File next to the component as `<Component>.test.tsx` (only `src/**/*.test.{ts,tsx}` is picked up).
+- Vitest globals are off — import `describe`, `it`, `expect`, `vi`, `afterEach` from `vitest`.
+- Render anything that uses TanStack Query with `renderWithQueryClient` from `@/test/render` (fresh `QueryClient` per test, retries off so error states appear immediately). Wrap in a `MemoryRouter` if the component uses React Router.
+- Mock the API at the axios boundary: `vi.spyOn(axios, 'get').mockResolvedValue({ data: … })` (or `mockRejectedValue` for errors, `mockReturnValue(new Promise(() => {}))` to hold it pending), and call `vi.restoreAllMocks()` in `afterEach`. Assert the request too (URL, and `{ signal: expect.any(AbortSignal) }` for queries).
+- Cover every state the component renders: loading (skeletons + the `sr-only` label), success with realistic data, empty, and error (`role="alert"`). For forms, cover validation errors and the server-error `root` message.
+- Query like a user: `getByRole` (with `name`) first, then `getByText`/`getByLabelText`; use `findBy…` to wait for async content and `queryBy…` with `.not.toBeInTheDocument()` for absence. Don't select by Tailwind classes; a `data-slot`/`data-variant` attribute is fine when it's the only visible distinction (e.g. badge variants).
+- Keep tests deterministic: build expected dates with the same `toLocaleDateString()` call the component uses instead of hard-coding a locale format.
+
+Running them (from the repo root unless noted):
+
+- `bun run test` — run the whole suite once (do this before committing; it should pass alongside `bun run typecheck`).
+- From `client/`: `bun run test:watch` re-runs on save while writing tests; `bun run test:ui` opens the Vitest UI in the browser (open the `?token=` URL it prints); `bunx vitest run src/pages/UsersPage.test.tsx` runs one file; add `-t "empty state"` to run tests whose name matches.
+- Don't use `bun --bun vitest` — jsdom fails under Bun's runtime, so Vitest runs on Node.
+
+### End-to-end tests
 
 - Use the `e2e-test-writer` subagent (`.claude/agents/e2e-test-writer.md`) to write or update Playwright E2E tests rather than writing them in the main session; it holds the test setup and conventions. Launch it when the user asks for tests and after finishing a significant page, user flow or role-gated feature.
 - In the prompt, name the feature or flow to cover and the files involved (pages, routes, endpoints) so it doesn't have to rediscover them.

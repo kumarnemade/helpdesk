@@ -6,6 +6,7 @@
     "dev": "bun --filter '*' dev",
     "build": "bun --filter '*' build",
     "typecheck": "bun --filter '*' typecheck",
+    "test": "bun run --cwd client test",
     "test:e2e": "bun run --cwd e2e test",
     "test:e2e:ui": "bun run --cwd e2e test:ui"
   }

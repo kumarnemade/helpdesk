@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import axios from 'axios'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -18,30 +20,16 @@ type User = {
 }
 
 const COLUMN_COUNT = 4
+const SKELETON_ROW_COUNT = 3
 
 export function UsersPage() {
-  const [users, setUsers] = useState<User[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const controller = new AbortController()
-
-    async function loadUsers() {
-      try {
-        const res = await fetch('/api/users', { signal: controller.signal })
-        if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
-        const data: { users: User[] } = await res.json()
-        setUsers(data.users)
-      } catch (err) {
-        if (controller.signal.aborted) return
-        console.error(err)
-        setError('Failed to load users. Please try again.')
-      }
-    }
-
-    loadUsers()
-    return () => controller.abort()
-  }, [])
+  const { data: users, isPending, isError } = useQuery({
+    queryKey: ['users'],
+    queryFn: async ({ signal }) => {
+      const { data } = await axios.get<{ users: User[] }>('/api/users', { signal })
+      return data.users
+    },
+  })
 
   return (
     <div>
@@ -59,18 +47,30 @@ export function UsersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {error ? (
+            {isError ? (
               <TableRow>
                 <TableCell colSpan={COLUMN_COUNT} className="h-24 text-center text-destructive" role="alert">
-                  {error}
+                  Failed to load users. Please try again.
                 </TableCell>
               </TableRow>
-            ) : users === null ? (
-              <TableRow>
-                <TableCell colSpan={COLUMN_COUNT} className="h-24 text-center text-muted-foreground">
-                  Loading users…
-                </TableCell>
-              </TableRow>
+            ) : isPending ? (
+              Array.from({ length: SKELETON_ROW_COUNT }, (_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    {i === 0 && <span className="sr-only">Loading users…</span>}
+                    <Skeleton className="h-4 w-28" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-44" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-14 rounded-4xl" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                  </TableCell>
+                </TableRow>
+              ))
             ) : users.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={COLUMN_COUNT} className="h-24 text-center text-muted-foreground">
