@@ -4,8 +4,10 @@ import helmet from "helmet";
 import { toNodeHandler } from "better-auth/node";
 import { auth, CLIENT_IP_HEADER } from "./auth";
 import { requireAuth } from "./middleware/requireAuth";
+import { requireRole } from "./middleware/requireRole";
 import { healthRouter } from "./routes/health";
 import { meRouter } from "./routes/me";
+import { usersRouter } from "./routes/users";
 
 export const app = express();
 
@@ -33,6 +35,7 @@ app.use(express.json());
 
 app.use("/api/health", healthRouter);
 app.use("/api/me", requireAuth, meRouter);
+app.use("/api/users", requireAuth, requireRole("admin"), usersRouter);
 
 // 404 for unmatched API routes
 app.use("/api", (_req, res) => {

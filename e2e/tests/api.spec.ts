@@ -186,3 +186,54 @@ test.describe("Security headers", () => {
     expect(res.headers()["x-content-type-options"]).toBe("nosniff");
   });
 });
+
+test.describe("GET /api/users", () => {
+  test("returns 401 JSON without a session", async ({ request }) => {
+    const res = await request.get("/api/users");
+    expect(res.status()).toBe(401);
+    expect(await res.json()).toEqual({ error: "Unauthorized" });
+  });
+
+  test.describe("as agent", () => {
+    test.use({ storageState: AGENT_STATE });
+    test("returns 403 Forbidden", async ({ request }) => {
+      const res = await request.get("/api/users");
+      expect(res.status()).toBe(403);
+      expect(await res.json()).toEqual({ error: "Forbidden" });
+    });
+  });
+
+  test.describe("as admin", () => {
+    test.use({ storageState: ADMIN_STATE });
+
+    test("lists the admin and agent fixture users with correct roles", async ({ request }) => {
+      const res = await request.get("/api/users");
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      expect(Object.keys(body)).toEqual(["users"]);
+      expect(Array.isArray(body.users)).toBe(true);
+      const byEmail = new Map<string, { role: string }>(
+        body.users.map((u: { email: string; role: string }) => [u.email, u]),
+      );
+      expect(byEmail.get(admin.email)?.role).toBe("admin");
+      expect(byEmail.get(agent.email)?.role).toBe("agent");
+    });
+
+    test("returns exactly id, name, email, role and createdAt per user", async ({ request }) => {
+      const body = await (await request.get("/api/users")).json();
+      expect(body.users.length).toBeGreaterThanOrEqual(2);
+      for (const user of body.users) {
+        expect(Object.keys(user).sort()).toEqual(["createdAt", "email", "id", "name", "role"]);
+      }
+      const raw = JSON.stringify(body).toLowerCase();
+      expect(raw).not.toContain("password");
+      expect(raw).not.toContain("emailverified");
+    });
+
+    test("orders users by createdAt ascending", async ({ request }) => {
+      const body = await (await request.get("/api/users")).json();
+      const times: number[] = body.users.map((u: { createdAt: string }) => Date.parse(u.createdAt));
+      expect(times).toEqual([...times].sort((a, b) => a - b));
+    });
+  });
+});
