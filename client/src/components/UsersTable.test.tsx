@@ -34,7 +34,7 @@ describe('UsersTable', () => {
     mockGet().mockResolvedValue({ data: { users } })
     renderWithQueryClient(<UsersTable />)
 
-    for (const name of ['Name', 'Email', 'Role', 'Created']) {
+    for (const name of ['Name', 'Email', 'Role', 'Created', 'Actions']) {
       expect(screen.getByRole('columnheader', { name })).toBeInTheDocument()
     }
     await screen.findByText('Ada Admin')
@@ -56,7 +56,7 @@ describe('UsersTable', () => {
     expect(screen.getByText('Loading users…')).toBeInTheDocument()
     // Header row + 3 skeleton rows.
     expect(screen.getAllByRole('row')).toHaveLength(4)
-    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(12)
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(15)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -89,6 +89,14 @@ describe('UsersTable', () => {
 
     expect(within(adminRow).getByText('admin')).toHaveAttribute('data-variant', 'default')
     expect(within(agentRow).getByText('agent')).toHaveAttribute('data-variant', 'secondary')
+  })
+
+  it('shows a delete button for agents but not for admins', async () => {
+    mockGet().mockResolvedValue({ data: { users } })
+    renderWithQueryClient(<UsersTable />)
+
+    expect(await screen.findByRole('button', { name: 'Delete Alan Agent' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete Ada Admin' })).not.toBeInTheDocument()
   })
 
   it('shows the empty state when there are no users', async () => {

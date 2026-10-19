@@ -19,3 +19,10 @@ export const createUserSchema = z.object({
 });
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
+
+// Route params for /api/users/:id.
+export const userIdParamsSchema = z.object({
+  id: z.string().trim().min(1, "User id is required"),
+});
+
+export type UserIdParams = z.infer<typeof userIdParamsSchema>;

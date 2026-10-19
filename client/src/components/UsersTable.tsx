@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { DeleteUserDialog } from '@/components/DeleteUserDialog'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -11,7 +12,7 @@ import {
 } from '@/components/ui/table'
 import { fetchUsers, usersQueryKey } from '@/lib/users'
 
-const COLUMN_COUNT = 4
+const COLUMN_COUNT = 5
 const SKELETON_ROW_COUNT = 3
 
 export function UsersTable() {
@@ -29,6 +30,9 @@ export function UsersTable() {
             <TableHead>Email</TableHead>
             <TableHead>Role</TableHead>
             <TableHead>Created</TableHead>
+            <TableHead className="w-12">
+              <span className="sr-only">Actions</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -54,6 +58,9 @@ export function UsersTable() {
                 <TableCell>
                   <Skeleton className="h-4 w-20" />
                 </TableCell>
+                <TableCell>
+                  <Skeleton className="size-7" />
+                </TableCell>
               </TableRow>
             ))
           ) : users.length === 0 ? (
@@ -73,6 +80,10 @@ export function UsersTable() {
                   </Badge>
                 </TableCell>
                 <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                <TableCell>
+                  {/* UI only; the API also refuses to delete admins. */}
+                  {user.role !== 'admin' && <DeleteUserDialog user={user} />}
+                </TableCell>
               </TableRow>
             ))
           )}

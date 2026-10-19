@@ -1,4 +1,4 @@
-import { createUserSchema } from "core";
+import { createUserSchema, userIdParamsSchema } from "core";
 import { Router } from "express";
 import { auth } from "../auth";
 import { prisma } from "../db";
@@ -10,6 +10,7 @@ const userSelect = { id: true, name: true, email: true, role: true, createdAt: t
 
 usersRouter.get("/", async (_req, res) => {
   const users = await prisma.user.findMany({
+    where: { deletedAt: null },
     select: userSelect,
     orderBy: { createdAt: "asc" },
   });
@@ -27,12 +28,18 @@ usersRouter.post("/", async (req, res) => {
   }
   const { name, email, password } = parsed.data;
 
-  const ctx = await auth.$context;
-  if (await ctx.internalAdapter.findUserByEmail(email)) {
-    res.status(409).json({ error: "A user with this email already exists" });
+  // Soft-deleted users keep their row, so their email stays taken.
+  const existing = await prisma.user.findUnique({ where: { email }, select: { deletedAt: true } });
+  if (existing) {
+    res.status(409).json({
+      error: existing.deletedAt
+        ? "This email belongs to a deleted user"
+        : "A user with this email already exists",
+    });
     return;
   }
 
+  const ctx = await auth.$context;
   const created = await ctx.internalAdapter.createUser(
     { name, email, emailVerified: true, role: "agent" },
     { method: "admin" },
@@ -55,4 +62,35 @@ usersRouter.post("/", async (req, res) => {
     select: userSelect,
   });
   res.status(201).json({ user });
+});
+
+// Soft delete: the row is kept with deletedAt set, the user disappears from
+// the API and their sessions are revoked. Sign-in is blocked by the session
+// hook in auth.ts. Admins can't be deleted (which also stops self-deletion).
+usersRouter.delete("/:id", async (req, res) => {
+  const parsed = userIdParamsSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request" });
+    return;
+  }
+  const { id } = parsed.data;
+
+  const user = await prisma.user.findFirst({
+    where: { id, deletedAt: null },
+    select: { role: true },
+  });
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (user.role === "admin") {
+    res.status(403).json({ error: "Admins cannot be deleted" });
+    return;
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({ where: { id }, data: { deletedAt: new Date() } }),
+    prisma.session.deleteMany({ where: { userId: id } }),
+  ]);
+  res.status(204).end();
 });

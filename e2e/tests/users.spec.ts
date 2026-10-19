@@ -156,3 +156,90 @@ test.describe("Create user dialog (admin)", () => {
     await expect(reopened.getByText("Enter a valid email address")).toHaveCount(0);
   });
 });
+
+// Delete user flow. Always deletes throwaway users, never the shared fixture agent.
+test.describe("Delete user dialog (admin)", () => {
+  test.use({ storageState: ADMIN_STATE });
+
+  const PASSWORD = "a-valid-password-123";
+
+  async function createUser(page: Page) {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const email = `del-${suffix}@example.com`;
+    const name = `Throwaway ${suffix}`;
+    const res = await page.request.post("/api/users", { data: { name, email, password: PASSWORD } });
+    expect(res.status()).toBe(201);
+    return { name, email };
+  }
+
+  test("admin row has no delete button but a created agent row does", async ({ page }) => {
+    const user = await createUser(page);
+    await page.goto("/users");
+    await expect(page.getByRole("columnheader", { name: "Actions" })).toBeAttached();
+
+    const adminRow = page.getByRole("row").filter({ hasText: admin.email });
+    await expect(adminRow).toHaveCount(1);
+    await expect(adminRow.getByRole("button")).toHaveCount(0);
+
+    const row = page.getByRole("row").filter({ hasText: user.email });
+    await expect(row.getByRole("button", { name: `Delete ${user.name}` })).toBeVisible();
+  });
+
+  test("shows the confirmation dialog and Cancel keeps the row", async ({ page }) => {
+    const user = await createUser(page);
+    await page.goto("/users");
+    const row = page.getByRole("row").filter({ hasText: user.email });
+    await row.getByRole("button", { name: `Delete ${user.name}` }).click();
+
+    const dialog = page.getByRole("alertdialog", { name: "Delete user?" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText(
+      `${user.name} (${user.email}) will no longer be able to sign in and will be removed from the user list.`,
+    );
+
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(row).toHaveCount(1);
+  });
+
+  test("confirming Delete closes the dialog and removes the row, even after reload", async ({ page }) => {
+    const user = await createUser(page);
+    await page.goto("/users");
+    const row = page.getByRole("row").filter({ hasText: user.email });
+    await row.getByRole("button", { name: `Delete ${user.name}` }).click();
+
+    const deleted = page.waitForResponse(
+      (r) => r.url().includes("/api/users/") && r.request().method() === "DELETE",
+    );
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
+    expect((await deleted).status()).toBe(204);
+
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(row).toHaveCount(0);
+
+    await page.reload();
+    await expect(page.getByRole("row").filter({ hasText: admin.email })).toBeVisible();
+    await expect(page.getByRole("row").filter({ hasText: user.email })).toHaveCount(0);
+  });
+
+  test("shows a generic alert and keeps the dialog open when the server fails", async ({ page }) => {
+    const user = await createUser(page);
+    await page.route("**/api/users/*", (route) =>
+      route.request().method() === "DELETE"
+        ? route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Internal Server Error" }) })
+        : route.continue(),
+    );
+    await page.goto("/users");
+    const row = page.getByRole("row").filter({ hasText: user.email });
+    await row.getByRole("button", { name: `Delete ${user.name}` }).click();
+
+    const dialog = page.getByRole("alertdialog");
+    await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toHaveText("Failed to delete user. Please try again.");
+    await expect(dialog).toBeVisible();
+
+    // The modal marks the page behind it aria-hidden, so close it before checking the row.
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(row).toHaveCount(1);
+  });
+});

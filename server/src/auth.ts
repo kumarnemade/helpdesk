@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { APIError } from "better-auth/api";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "core";
 import { prisma } from "./db";
 
@@ -47,6 +48,27 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // refresh expiry at most once a day
+  },
+  databaseHooks: {
+    session: {
+      create: {
+        // Soft-deleted users (DELETE /api/users/:id) keep their credentials, so
+        // stop them at session creation. Same response as a wrong password so
+        // it doesn't reveal that the account exists.
+        before: async (session) => {
+          const user = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: { deletedAt: true },
+          });
+          if (!user || user.deletedAt) {
+            throw APIError.from("UNAUTHORIZED", {
+              code: "INVALID_EMAIL_OR_PASSWORD",
+              message: "Invalid email or password",
+            });
+          }
+        },
+      },
+    },
   },
   // Production only, stored in the `rateLimit` table so it survives restarts.
   rateLimit: {

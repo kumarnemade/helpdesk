@@ -20,3 +20,8 @@ export async function createUser(input: CreateUserInput) {
   const { data } = await axios.post<{ user: User }>('/api/users', input)
   return data.user
 }
+
+// Soft delete on the server; the user disappears from the list.
+export async function deleteUser(id: string) {
+  await axios.delete(`/api/users/${encodeURIComponent(id)}`)
+}

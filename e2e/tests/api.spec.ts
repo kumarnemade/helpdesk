@@ -358,3 +358,96 @@ test.describe("POST /api/users", () => {
     });
   });
 });
+
+test.describe("DELETE /api/users/:id", () => {
+  test("returns 401 JSON without a session", async ({ request }) => {
+    const res = await request.delete("/api/users/some-id");
+    expect(res.status()).toBe(401);
+    expect(await res.json()).toEqual({ error: "Unauthorized" });
+  });
+
+  test.describe("as agent", () => {
+    test.use({ storageState: AGENT_STATE });
+    test("returns 403 Forbidden", async ({ request }) => {
+      const res = await request.delete("/api/users/some-id");
+      expect(res.status()).toBe(403);
+      expect(await res.json()).toEqual({ error: "Forbidden" });
+    });
+  });
+
+  test.describe("as admin", () => {
+    test.use({ storageState: ADMIN_STATE });
+
+    test("returns 404 for an unknown id", async ({ request }) => {
+      const res = await request.delete("/api/users/does-not-exist-id");
+      expect(res.status()).toBe(404);
+      expect(await res.json()).toEqual({ error: "User not found" });
+    });
+
+    test("returns 403 when the admin targets themselves", async ({ request }) => {
+      const me = await (await request.get("/api/me")).json();
+      const res = await request.delete(`/api/users/${me.user.id}`);
+      expect(res.status()).toBe(403);
+      expect(await res.json()).toEqual({ error: "Admins cannot be deleted" });
+
+      // Admin is still intact.
+      expect((await request.get("/api/me")).status()).toBe(200);
+    });
+
+    test("soft-deletes a user: hidden, session revoked, sign-in blocked, email reserved", async ({ request, playwright, baseURL }) => {
+      const email = uniqueEmail("todelete");
+      const create = await request.post("/api/users", {
+        data: { name: "To Delete", email, password: VALID_PASSWORD },
+      });
+      expect(create.status()).toBe(201);
+      const { id } = (await create.json()).user;
+
+      // Sign in with a fresh context so we hold the user's own session.
+      const ctx = await playwright.request.newContext({ baseURL });
+      try {
+        const login = await ctx.post("/api/auth/sign-in/email", {
+          headers: { origin: CLIENT_ORIGIN },
+          data: { email, password: VALID_PASSWORD },
+        });
+        expect(login.status()).toBe(200);
+        expect((await ctx.get("/api/me")).status()).toBe(200);
+
+        const del = await request.delete(`/api/users/${id}`);
+        expect(del.status()).toBe(204);
+        expect(await del.text()).toBe("");
+
+        const list = await (await request.get("/api/users")).json();
+        expect(list.users.map((u: { id: string }) => u.id)).not.toContain(id);
+
+        // Existing session is revoked.
+        expect((await ctx.get("/api/me")).status()).toBe(401);
+
+        // Sign-in is indistinguishable from a wrong password.
+        const relogin = await playwright.request.newContext({ baseURL });
+        try {
+          const res = await relogin.post("/api/auth/sign-in/email", {
+            headers: { origin: CLIENT_ORIGIN },
+            data: { email, password: VALID_PASSWORD },
+          });
+          expect(res.status()).toBe(401);
+          expect((await res.json()).code).toBe("INVALID_EMAIL_OR_PASSWORD");
+          expect(res.headers()["set-cookie"]).toBeUndefined();
+        } finally {
+          await relogin.dispose();
+        }
+      } finally {
+        await ctx.dispose();
+      }
+
+      const again = await request.delete(`/api/users/${id}`);
+      expect(again.status()).toBe(404);
+      expect(await again.json()).toEqual({ error: "User not found" });
+
+      const recreate = await request.post("/api/users", {
+        data: { name: "Reborn", email, password: VALID_PASSWORD },
+      });
+      expect(recreate.status()).toBe(409);
+      expect(await recreate.json()).toEqual({ error: "This email belongs to a deleted user" });
+    });
+  });
+});
