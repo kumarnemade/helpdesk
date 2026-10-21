@@ -29,8 +29,10 @@ model User {
   deletedAt     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  sessions      Session[]
-  accounts      Account[]
+  sessions        Session[]
+  accounts        Account[]
+  assignedTickets Ticket[]
+  replies         Reply[]
 
   @@unique([email])
   @@map("user")
@@ -82,6 +84,71 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+// Tickets
+
+enum TicketStatus {
+  new
+  open
+  resolved
+  closed
+}
+
+enum TicketCategory {
+  general_question
+  technical_question
+  refund_request
+}
+
+enum ReplySender {
+  customer
+  agent
+}
+
+model Ticket {
+  id             Int             @id @default(autoincrement())
+  subject        String
+  body           String
+  bodyHtml       String?
+  status         TicketStatus    @default(new)
+  // No default: set later by AI classification or an agent.
+  category       TicketCategory?
+  senderName     String
+  senderEmail    String
+  assignedToId   String?
+  assignedTo     User?           @relation(fields: [assignedToId], references: [id])
+  // RFC 5322 Message-ID of the email that opened the ticket (without angle
+  // brackets): threads replies onto it and makes webhook retries idempotent.
+  emailMessageId String?         @unique
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  replies        Reply[]
+
+  @@index([status])
+  @@index([senderEmail])
+  @@index([assignedToId])
+  @@map("ticket")
+}
+
+model Reply {
+  id             Int         @id @default(autoincrement())
+  ticketId       Int
+  ticket         Ticket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  body           String
+  bodyHtml       String?
+  senderType     ReplySender
+  senderName     String
+  senderEmail    String
+  // The agent who wrote an agent reply; null for customer replies.
+  authorId       String?
+  author         User?       @relation(fields: [authorId], references: [id])
+  // Message-ID of the email this reply came from (or was sent as).
+  emailMessageId String?     @unique
+  createdAt      DateTime    @default(now())
+
+  @@index([ticketId])
+  @@map("reply")
 }
 
 // Better Auth rate-limit counters (rateLimit.storage = "database")

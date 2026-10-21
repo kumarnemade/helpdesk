@@ -5,7 +5,9 @@ import { toNodeHandler } from "better-auth/node";
 import { auth, CLIENT_IP_HEADER } from "./auth";
 import { requireAuth } from "./middleware/requireAuth";
 import { requireRole } from "./middleware/requireRole";
+import { requireWebhookSecret } from "./middleware/requireWebhookSecret";
 import { healthRouter } from "./routes/health";
+import { inboundEmailRouter } from "./routes/inboundEmail";
 import { meRouter } from "./routes/me";
 import { usersRouter } from "./routes/users";
 
@@ -30,6 +32,15 @@ app.use("/api/auth", (req, _res, next) => {
 
 // Must be mounted before express.json(), which would consume the request body.
 app.all("/api/auth/*splat", toNodeHandler(auth));
+
+// Mounted before the global express.json() so emails get a larger body limit
+// than the default 100kb. Authenticated by a shared secret, not a session.
+app.use(
+  "/api/inbound-email",
+  express.json({ limit: "1mb" }),
+  requireWebhookSecret,
+  inboundEmailRouter,
+);
 
 app.use(express.json());
 
