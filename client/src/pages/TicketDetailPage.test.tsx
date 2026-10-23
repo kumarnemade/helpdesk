@@ -1,0 +1,162 @@
+import axios, { AxiosError, AxiosHeaders } from 'axios'
+import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderWithQueryClient } from '@/test/render'
+import type { TicketDetail } from '@/lib/tickets'
+import { TicketDetailPage } from './TicketDetailPage'
+
+const ticket: TicketDetail = {
+  id: 42,
+  subject: 'Charged twice for annual plan',
+  status: 'open',
+  category: 'refund_request',
+  senderName: 'Priya Shah',
+  senderEmail: 'priya@example.com',
+  createdAt: '2026-10-21T09:30:00.000Z',
+  updatedAt: '2026-10-22T10:00:00.000Z',
+  assignedTo: { id: 'u2', name: 'Alan Agent' },
+  body: 'My card was charged $199 twice.\nPlease refund the duplicate payment.',
+}
+
+// Shows where the back link went, so tests can check the list's query string.
+function TicketsListProbe() {
+  const { search } = useLocation()
+  return <p>Tickets list{search}</p>
+}
+
+function renderPage(path = '/tickets/42', state?: unknown) {
+  return renderWithQueryClient(
+    <MemoryRouter initialEntries={[{ pathname: path, state }]}>
+      <Routes>
+        <Route path="/tickets/:id" element={<TicketDetailPage />} />
+        <Route path="/tickets" element={<TicketsListProbe />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+function notFoundError() {
+  return new AxiosError('Request failed with status code 404', 'ERR_BAD_REQUEST', undefined, undefined, {
+    status: 404,
+    statusText: 'Not Found',
+    data: { error: 'Ticket not found' },
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+  })
+}
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('TicketDetailPage', () => {
+  it('requests the ticket from the id in the URL with an abort signal', async () => {
+    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket } })
+    renderPage()
+
+    await screen.findByRole('heading', { name: ticket.subject })
+    // The assignee dropdown loads its own list (covered in AssigneeSelect.test.tsx).
+    expect(get.mock.calls.filter(([url]) => url === '/api/tickets/42')).toHaveLength(1)
+    expect(get).toHaveBeenCalledWith('/api/tickets/42', { signal: expect.any(AbortSignal) })
+  })
+
+  it('shows skeletons with an accessible loading label while pending', () => {
+    vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
+    const { container } = renderPage()
+
+    expect(screen.getByText('Loading ticket…')).toBeInTheDocument()
+    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows the ticket details and the opening email', async () => {
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket } })
+    renderPage()
+
+    expect(await screen.findByRole('heading', { level: 1, name: ticket.subject })).toBeInTheDocument()
+    expect(screen.getByText('Ticket #42')).toBeInTheDocument()
+
+    const field = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling!
+    // Status, category and assignee are editable dropdowns (tested in their own files).
+    expect(within(field('Status') as HTMLElement).getByRole('combobox', { name: 'Status' })).toHaveTextContent('Open')
+    expect(within(field('Category') as HTMLElement).getByRole('combobox', { name: 'Category' })).toHaveTextContent('Refund Request')
+    expect(field('Assigned to')).toHaveTextContent('Alan Agent')
+    // The received date sits with the subject, not among the dropdowns.
+    expect(screen.getByText(`Received ${new Date(ticket.createdAt).toLocaleString()}`)).toBeInTheDocument()
+
+    // The opening email's header names the sender.
+    expect(document.querySelector('[data-slot="card-title"]')).toHaveTextContent('Priya Shah <priya@example.com>')
+    // Line breaks in the plain-text body are kept (whitespace-pre-wrap).
+    expect(screen.getByText(/My card was charged \$199 twice\.\s+Please refund/)).toBeInTheDocument()
+  })
+
+  it('puts the status, category and assignee dropdowns in the right-hand column', async () => {
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket } })
+    renderPage()
+    await screen.findByRole('heading', { name: ticket.subject })
+
+    const sidebar = screen.getByRole('complementary', { name: 'Ticket properties' })
+    expect(within(sidebar).getAllByRole('combobox').map((select) => select.getAttribute('aria-label'))).toEqual([
+      'Status',
+      'Category',
+      'Assigned to',
+    ])
+    // The subject and the email stay in the main column.
+    expect(within(sidebar).queryByRole('heading', { name: ticket.subject })).not.toBeInTheDocument()
+    expect(within(sidebar).queryByText(/My card was charged/)).not.toBeInTheDocument()
+  })
+
+  it('shows "Uncategorised" and "Unassigned" when there is no category or assignee', async () => {
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket: { ...ticket, category: null, assignedTo: null } } })
+    renderPage()
+
+    await screen.findByRole('heading', { name: ticket.subject })
+    expect(screen.getByText('Category', { selector: 'dt' }).nextElementSibling).toHaveTextContent('Uncategorised')
+    expect(screen.getByText('Assigned to', { selector: 'dt' }).nextElementSibling).toHaveTextContent('Unassigned')
+  })
+
+  it('shows "Ticket not found" when the server returns 404', async () => {
+    vi.spyOn(axios, 'get').mockRejectedValue(notFoundError())
+    renderPage('/tickets/999')
+
+    expect(await screen.findByRole('heading', { name: 'Ticket not found' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows "Ticket not found" for a non-numeric id without calling the API', () => {
+    const get = vi.spyOn(axios, 'get')
+    renderPage('/tickets/abc')
+
+    expect(screen.getByRole('heading', { name: 'Ticket not found' })).toBeInTheDocument()
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it('shows an error alert when the request fails', async () => {
+    vi.spyOn(axios, 'get').mockRejectedValue(new Error('Request failed with status code 500'))
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load the ticket. Please try again.')
+    expect(screen.queryByText('Loading ticket…')).not.toBeInTheDocument()
+  })
+
+  it('goes back to the list view it was opened from', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket } })
+    renderPage('/tickets/42', { from: '?status=open&page=2' })
+    await screen.findByRole('heading', { name: ticket.subject })
+
+    await user.click(screen.getByRole('link', { name: 'Back to tickets' }))
+
+    expect(screen.getByText('Tickets list?status=open&page=2')).toBeInTheDocument()
+  })
+
+  it('goes back to the plain list when opened directly', async () => {
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket } })
+    renderPage()
+    await screen.findByRole('heading', { name: ticket.subject })
+
+    expect(screen.getByRole('link', { name: 'Back to tickets' })).toHaveAttribute('href', '/tickets')
+  })
+})

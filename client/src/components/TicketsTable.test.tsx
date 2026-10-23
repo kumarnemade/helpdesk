@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test/render'
 import { TicketsTable } from './TicketsTable'
@@ -9,6 +9,12 @@ import { TicketsTable } from './TicketsTable'
 // Shows the current query string so tests can check filters reach the URL.
 function LocationSearch() {
   return <output data-testid="location-search">{useLocation().search}</output>
+}
+
+// Stands in for the detail page: shows the path and the router state it got.
+function TicketPageProbe() {
+  const { pathname, state } = useLocation()
+  return <p>{`Ticket page ${pathname} from ${(state as { from: string } | null)?.from}`}</p>
 }
 
 function renderTable(url = '/tickets') {
@@ -70,7 +76,7 @@ afterEach(() => {
 
 describe('TicketsTable', () => {
   it('renders the column headers', async () => {
-    mockGet().mockResolvedValue({ data: { tickets } })
+    mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
     renderTable()
 
     for (const name of ['Subject', 'From', 'Status', 'Category', 'Assigned to', 'Received']) {
@@ -80,19 +86,19 @@ describe('TicketsTable', () => {
   })
 
   it('requests /api/tickets newest first with an abort signal', async () => {
-    const get = mockGet().mockResolvedValue({ data: { tickets } })
+    const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
     renderTable()
 
     await screen.findByText('Refund for duplicate charge')
     expect(get).toHaveBeenCalledTimes(1)
     expect(get).toHaveBeenCalledWith('/api/tickets', {
-      params: { sortBy: 'createdAt', sortOrder: 'desc' },
+      params: { sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 10 },
       signal: expect.any(AbortSignal),
     })
   })
 
   it('marks Received as sorted descending by default', async () => {
-    mockGet().mockResolvedValue({ data: { tickets } })
+    mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
     renderTable()
 
     await screen.findByText('Refund for duplicate charge')
@@ -104,14 +110,14 @@ describe('TicketsTable', () => {
 
   it('asks the server to sort by a column, ascending then descending', async () => {
     const user = userEvent.setup()
-    const get = mockGet().mockResolvedValue({ data: { tickets } })
+    const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
     renderTable()
     await screen.findByText('Refund for duplicate charge')
 
     await user.click(screen.getByRole('button', { name: 'Subject' }))
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-        params: { sortBy: 'subject', sortOrder: 'asc' },
+        params: { sortBy: 'subject', sortOrder: 'asc', page: 1, pageSize: 10 },
         signal: expect.any(AbortSignal),
       }),
     )
@@ -121,7 +127,7 @@ describe('TicketsTable', () => {
     await user.click(screen.getByRole('button', { name: 'Subject' }))
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-        params: { sortBy: 'subject', sortOrder: 'desc' },
+        params: { sortBy: 'subject', sortOrder: 'desc', page: 1, pageSize: 10 },
         signal: expect.any(AbortSignal),
       }),
     )
@@ -130,14 +136,14 @@ describe('TicketsTable', () => {
 
   it('sorts the assignee column by the server-side assignedTo field', async () => {
     const user = userEvent.setup()
-    const get = mockGet().mockResolvedValue({ data: { tickets } })
+    const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
     renderTable()
     await screen.findByText('Refund for duplicate charge')
 
     await user.click(screen.getByRole('button', { name: 'Assigned to' }))
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-        params: { sortBy: 'assignedTo', sortOrder: 'asc' },
+        params: { sortBy: 'assignedTo', sortOrder: 'asc', page: 1, pageSize: 10 },
         signal: expect.any(AbortSignal),
       }),
     )
@@ -147,8 +153,8 @@ describe('TicketsTable', () => {
     const user = userEvent.setup()
     const bySubject = [tickets[1]!, tickets[2]!, tickets[0]!].sort((a, b) => a.subject.localeCompare(b.subject))
     mockGet()
-      .mockResolvedValueOnce({ data: { tickets } })
-      .mockResolvedValueOnce({ data: { tickets: bySubject } })
+      .mockResolvedValueOnce({ data: { tickets, total: tickets.length } })
+      .mockResolvedValueOnce({ data: { tickets: bySubject, total: bySubject.length } })
     renderTable()
     await screen.findByText('Refund for duplicate charge')
 
@@ -175,7 +181,7 @@ describe('TicketsTable', () => {
   })
 
   it('renders tickets in the order returned, newest first', async () => {
-    mockGet().mockResolvedValue({ data: { tickets } })
+    mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
     renderTable()
 
     await screen.findByText('Refund for duplicate charge')
@@ -188,7 +194,7 @@ describe('TicketsTable', () => {
   })
 
   it('renders sender, status, category, assignee and received date', async () => {
-    mockGet().mockResolvedValue({ data: { tickets } })
+    mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
     renderTable()
 
     const assignedRow = (await screen.findByText('Refund for duplicate charge')).closest('tr')!
@@ -196,7 +202,7 @@ describe('TicketsTable', () => {
     expect(assignedCells[1]).toHaveTextContent('Priya Shah')
     expect(assignedCells[1]).toHaveTextContent('priya@example.com')
     expect(assignedCells[2]).toHaveTextContent('Open')
-    expect(assignedCells[3]).toHaveTextContent('Refund request')
+    expect(assignedCells[3]).toHaveTextContent('Refund Request')
     expect(assignedCells[4]).toHaveTextContent('Alan Agent')
     expect(assignedCells[5]).toHaveTextContent(new Date(tickets[0]!.createdAt).toLocaleDateString())
 
@@ -209,8 +215,28 @@ describe('TicketsTable', () => {
     expect(screen.queryByText('Loading tickets…')).not.toBeInTheDocument()
   })
 
+  it('links each subject to the ticket page, passing the list view along', async () => {
+    const user = userEvent.setup()
+    mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
+    renderWithQueryClient(
+      <MemoryRouter initialEntries={['/tickets?status=open&page=2']}>
+        <Routes>
+          <Route path="/tickets" element={<TicketsTable />} />
+          <Route path="/tickets/:id" element={<TicketPageProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    const link = await screen.findByRole('link', { name: 'Refund for duplicate charge' })
+    expect(link).toHaveAttribute('href', '/tickets/3')
+
+    await user.click(link)
+
+    expect(screen.getByText('Ticket page /tickets/3 from ?status=open&page=2')).toBeInTheDocument()
+  })
+
   it('uses a badge variant per status', async () => {
-    mockGet().mockResolvedValue({ data: { tickets } })
+    mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
     renderTable()
 
     await screen.findByText('Refund for duplicate charge')
@@ -220,7 +246,7 @@ describe('TicketsTable', () => {
   })
 
   it('shows the empty state when there are no tickets', async () => {
-    mockGet().mockResolvedValue({ data: { tickets: [] } })
+    mockGet().mockResolvedValue({ data: { tickets: [], total: 0 } })
     renderTable()
 
     expect(await screen.findByText('No tickets yet.')).toBeInTheDocument()
@@ -237,7 +263,7 @@ describe('TicketsTable', () => {
 
   describe('filters', () => {
     it('shows both filters as "All" with no Clear button by default', async () => {
-      mockGet().mockResolvedValue({ data: { tickets } })
+      mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
       renderTable()
 
       await screen.findByText('Refund for duplicate charge')
@@ -247,12 +273,12 @@ describe('TicketsTable', () => {
     })
 
     it('reads filters from the URL and sends them to the server', async () => {
-      const get = mockGet().mockResolvedValue({ data: { tickets: [tickets[1]!] } })
+      const get = mockGet().mockResolvedValue({ data: { tickets: [tickets[1]!], total: 1 } })
       renderTable('/tickets?status=new&category=none')
 
       await screen.findByText('Unable to access course materials')
       expect(get).toHaveBeenCalledWith('/api/tickets', {
-        params: { status: 'new', category: 'none', sortBy: 'createdAt', sortOrder: 'desc' },
+        params: { status: 'new', category: 'none', sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 10 },
         signal: expect.any(AbortSignal),
       })
       expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('New')
@@ -260,19 +286,19 @@ describe('TicketsTable', () => {
     })
 
     it('ignores invalid filter values in the URL', async () => {
-      const get = mockGet().mockResolvedValue({ data: { tickets } })
+      const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
       renderTable('/tickets?status=bogus&category=spam')
 
       await screen.findByText('Refund for duplicate charge')
       expect(get).toHaveBeenCalledWith('/api/tickets', {
-        params: { sortBy: 'createdAt', sortOrder: 'desc' },
+        params: { sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 10 },
         signal: expect.any(AbortSignal),
       })
       expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('All statuses')
     })
 
     it('filters by status on the server and puts it in the URL', async () => {
-      const get = mockGet().mockResolvedValue({ data: { tickets } })
+      const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
       renderTable()
       await screen.findByText('Refund for duplicate charge')
 
@@ -280,7 +306,7 @@ describe('TicketsTable', () => {
 
       await waitFor(() =>
         expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-          params: { status: 'closed', sortBy: 'createdAt', sortOrder: 'desc' },
+          params: { status: 'closed', sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 10 },
           signal: expect.any(AbortSignal),
         }),
       )
@@ -289,7 +315,7 @@ describe('TicketsTable', () => {
     })
 
     it('filters uncategorised tickets with category=none', async () => {
-      const get = mockGet().mockResolvedValue({ data: { tickets } })
+      const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
       renderTable()
       await screen.findByText('Refund for duplicate charge')
 
@@ -297,7 +323,7 @@ describe('TicketsTable', () => {
 
       await waitFor(() =>
         expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-          params: { category: 'none', sortBy: 'createdAt', sortOrder: 'desc' },
+          params: { category: 'none', sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 10 },
           signal: expect.any(AbortSignal),
         }),
       )
@@ -305,7 +331,7 @@ describe('TicketsTable', () => {
     })
 
     it('removes a filter when "All" is chosen again', async () => {
-      const get = mockGet().mockResolvedValue({ data: { tickets } })
+      const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
       renderTable('/tickets?status=open')
       await screen.findByText('Refund for duplicate charge')
 
@@ -313,7 +339,7 @@ describe('TicketsTable', () => {
 
       await waitFor(() =>
         expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-          params: { sortBy: 'createdAt', sortOrder: 'desc' },
+          params: { sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 10 },
           signal: expect.any(AbortSignal),
         }),
       )
@@ -322,7 +348,7 @@ describe('TicketsTable', () => {
 
     it('keeps the sort order when filtering', async () => {
       const user = userEvent.setup()
-      const get = mockGet().mockResolvedValue({ data: { tickets } })
+      const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
       renderTable('/tickets?category=refund_request')
       await screen.findByText('Refund for duplicate charge')
 
@@ -330,14 +356,14 @@ describe('TicketsTable', () => {
 
       await waitFor(() =>
         expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-          params: { category: 'refund_request', sortBy: 'subject', sortOrder: 'asc' },
+          params: { category: 'refund_request', sortBy: 'subject', sortOrder: 'asc', page: 1, pageSize: 10 },
           signal: expect.any(AbortSignal),
         }),
       )
     })
 
     it('shows a filtered empty state when nothing matches', async () => {
-      mockGet().mockResolvedValue({ data: { tickets: [] } })
+      mockGet().mockResolvedValue({ data: { tickets: [], total: 0 } })
       renderTable('/tickets?status=closed')
 
       expect(await screen.findByText('No tickets match these filters.')).toBeInTheDocument()
@@ -346,7 +372,7 @@ describe('TicketsTable', () => {
 
     it('clears all filters', async () => {
       const user = userEvent.setup()
-      const get = mockGet().mockResolvedValue({ data: { tickets } })
+      const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
       renderTable('/tickets?status=resolved&category=general_question')
       await screen.findByText('Refund for duplicate charge')
 
@@ -354,7 +380,7 @@ describe('TicketsTable', () => {
 
       await waitFor(() =>
         expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-          params: { sortBy: 'createdAt', sortOrder: 'desc' },
+          params: { sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 10 },
           signal: expect.any(AbortSignal),
         }),
       )
@@ -373,7 +399,7 @@ describe('TicketsTable', () => {
 
     it('searches on the server once typing pauses and puts it in the URL', async () => {
       const user = userEvent.setup()
-      const get = mockGet().mockResolvedValue({ data: { tickets } })
+      const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
       renderTable()
       await screen.findByText('Refund for duplicate charge')
 
@@ -381,7 +407,7 @@ describe('TicketsTable', () => {
 
       await waitFor(() =>
         expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-          params: { search: 'Refund', sortBy: 'createdAt', sortOrder: 'desc' },
+          params: { search: 'Refund', sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 10 },
           signal: expect.any(AbortSignal),
         }),
       )
@@ -392,20 +418,20 @@ describe('TicketsTable', () => {
     })
 
     it('reads the search from the URL, keeping its case for the server', async () => {
-      const get = mockGet().mockResolvedValue({ data: { tickets } })
+      const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
       renderTable('/tickets?search=PRIYA')
 
       await screen.findByText('Refund for duplicate charge')
       expect(screen.getByRole('searchbox', { name: 'Search tickets' })).toHaveValue('PRIYA')
       expect(get).toHaveBeenCalledWith('/api/tickets', {
-        params: { search: 'PRIYA', sortBy: 'createdAt', sortOrder: 'desc' },
+        params: { search: 'PRIYA', sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 10 },
         signal: expect.any(AbortSignal),
       })
     })
 
     it('does not send a search made only of spaces', async () => {
       const user = userEvent.setup()
-      const get = mockGet().mockResolvedValue({ data: { tickets } })
+      const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
       renderTable()
       await screen.findByText('Refund for duplicate charge')
 
@@ -417,7 +443,7 @@ describe('TicketsTable', () => {
 
     it('combines the search with filters and sorting', async () => {
       const user = userEvent.setup()
-      const get = mockGet().mockResolvedValue({ data: { tickets } })
+      const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
       renderTable('/tickets?search=gmail.com&status=open')
       await screen.findByText('Refund for duplicate charge')
 
@@ -425,14 +451,14 @@ describe('TicketsTable', () => {
 
       await waitFor(() =>
         expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-          params: { search: 'gmail.com', status: 'open', sortBy: 'senderName', sortOrder: 'asc' },
+          params: { search: 'gmail.com', status: 'open', sortBy: 'senderName', sortOrder: 'asc', page: 1, pageSize: 10 },
           signal: expect.any(AbortSignal),
         }),
       )
     })
 
     it('shows the filtered empty state when the search matches nothing', async () => {
-      mockGet().mockResolvedValue({ data: { tickets: [] } })
+      mockGet().mockResolvedValue({ data: { tickets: [], total: 0 } })
       renderTable('/tickets?search=zzz')
 
       expect(await screen.findByText('No tickets match these filters.')).toBeInTheDocument()
@@ -440,7 +466,7 @@ describe('TicketsTable', () => {
 
     it('clears the search box and filters together', async () => {
       const user = userEvent.setup()
-      const get = mockGet().mockResolvedValue({ data: { tickets } })
+      const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
       renderTable('/tickets?search=refund&category=refund_request')
       await screen.findByText('Refund for duplicate charge')
 
@@ -448,13 +474,190 @@ describe('TicketsTable', () => {
 
       await waitFor(() =>
         expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-          params: { sortBy: 'createdAt', sortOrder: 'desc' },
+          params: { sortBy: 'createdAt', sortOrder: 'desc', page: 1, pageSize: 10 },
           signal: expect.any(AbortSignal),
         }),
       )
       expect(screen.getByRole('searchbox', { name: 'Search tickets' })).toHaveValue('')
       expect(screen.getByRole('combobox', { name: 'Category' })).toHaveTextContent('All categories')
       expect(screen.getByTestId('location-search')).toBeEmptyDOMElement()
+    })
+  })
+
+  describe('pagination', () => {
+    // 23 tickets → 3 pages of 10. The mock serves whichever page is requested,
+    // like the server: a page past the end is empty but keeps the total.
+    const manyTickets = Array.from({ length: 23 }, (_, i) => ({
+      ...tickets[0]!,
+      id: 100 - i,
+      subject: `Ticket number ${i + 1}`,
+    }))
+
+    function mockPages() {
+      return mockGet().mockImplementation((_url, config) => {
+        const { page = 1, pageSize = 10 } = (config as { params: { page?: number; pageSize?: number } }).params
+        const start = (page - 1) * pageSize
+        return Promise.resolve({
+          data: { tickets: manyTickets.slice(start, start + pageSize), total: manyTickets.length },
+        })
+      })
+    }
+
+    function lastParams(get: ReturnType<typeof mockGet>) {
+      return (get.mock.lastCall?.[1] as { params: Record<string, unknown> }).params
+    }
+
+    it('shows the range, page count and disabled buttons on the first page', async () => {
+      mockPages()
+      renderTable()
+
+      await screen.findByText('Ticket number 1')
+      expect(screen.getAllByRole('row')).toHaveLength(11)
+      expect(screen.getByText('Showing 1–10 of 23 tickets')).toBeInTheDocument()
+      expect(screen.getByText('Page 1 of 3')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Go to first page' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Go to previous page' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Go to next page' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Go to last page' })).toBeEnabled()
+      expect(screen.getByRole('combobox', { name: 'Rows per page' })).toHaveTextContent('10')
+    })
+
+    it('requests the next page from the server and puts it in the URL', async () => {
+      const user = userEvent.setup()
+      const get = mockPages()
+      renderTable()
+      await screen.findByText('Ticket number 1')
+
+      await user.click(screen.getByRole('button', { name: 'Go to next page' }))
+
+      expect(await screen.findByText('Ticket number 11')).toBeInTheDocument()
+      expect(lastParams(get)).toMatchObject({ page: 2, pageSize: 10 })
+      expect(screen.getByTestId('location-search')).toHaveTextContent('?page=2')
+      expect(screen.getByText('Showing 11–20 of 23 tickets')).toBeInTheDocument()
+      expect(screen.getByText('Page 2 of 3')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Go to previous page' })).toBeEnabled()
+    })
+
+    it('jumps to the last page and back to the first', async () => {
+      const user = userEvent.setup()
+      const get = mockPages()
+      renderTable()
+      await screen.findByText('Ticket number 1')
+
+      await user.click(screen.getByRole('button', { name: 'Go to last page' }))
+
+      expect(await screen.findByText('Ticket number 21')).toBeInTheDocument()
+      expect(lastParams(get)).toMatchObject({ page: 3 })
+      expect(screen.getByText('Showing 21–23 of 23 tickets')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Go to next page' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Go to last page' })).toBeDisabled()
+
+      await user.click(screen.getByRole('button', { name: 'Go to first page' }))
+
+      expect(await screen.findByText('Ticket number 1')).toBeInTheDocument()
+      expect(lastParams(get)).toMatchObject({ page: 1 })
+      expect(screen.getByTestId('location-search')).toBeEmptyDOMElement()
+    })
+
+    it('reads the page from the URL', async () => {
+      const get = mockPages()
+      renderTable('/tickets?page=3')
+
+      expect(await screen.findByText('Ticket number 21')).toBeInTheDocument()
+      expect(lastParams(get)).toMatchObject({ page: 3, pageSize: 10 })
+      expect(screen.getByText('Page 3 of 3')).toBeInTheDocument()
+    })
+
+    it('reads the page size from the URL', async () => {
+      const get = mockPages()
+      renderTable('/tickets?pageSize=25')
+
+      expect(await screen.findByText('Ticket number 23')).toBeInTheDocument()
+      expect(lastParams(get)).toMatchObject({ page: 1, pageSize: 25 })
+      expect(screen.getByRole('combobox', { name: 'Rows per page' })).toHaveTextContent('25')
+      expect(screen.getByText('Page 1 of 1')).toBeInTheDocument()
+    })
+
+    it('ignores invalid page values in the URL', async () => {
+      const get = mockPages()
+      renderTable('/tickets?page=abc&pageSize=7')
+
+      await screen.findByText('Ticket number 1')
+      expect(lastParams(get)).toMatchObject({ page: 1, pageSize: 10 })
+    })
+
+    it('changing the rows per page goes back to page 1', async () => {
+      const get = mockPages()
+      renderTable('/tickets?page=2')
+      await screen.findByText('Ticket number 11')
+
+      await chooseOption('Rows per page', '25')
+
+      expect(await screen.findByText('Ticket number 23')).toBeInTheDocument()
+      expect(lastParams(get)).toMatchObject({ page: 1, pageSize: 25 })
+      expect(screen.getByTestId('location-search')).toHaveTextContent('?pageSize=25')
+      expect(screen.getByText('Showing 1–23 of 23 tickets')).toBeInTheDocument()
+      expect(screen.getByText('Page 1 of 1')).toBeInTheDocument()
+    })
+
+    it('changing a filter goes back to page 1', async () => {
+      const get = mockPages()
+      renderTable('/tickets?page=3')
+      await screen.findByText('Ticket number 21')
+
+      await chooseOption('Status', 'Open')
+
+      await waitFor(() => expect(lastParams(get)).toMatchObject({ status: 'open', page: 1 }))
+      expect(screen.getByTestId('location-search')).toHaveTextContent('?status=open')
+      expect(screen.getByTestId('location-search')).not.toHaveTextContent('page=')
+    })
+
+    it('changing the search goes back to page 1', async () => {
+      const user = userEvent.setup()
+      const get = mockPages()
+      renderTable('/tickets?page=2')
+      await screen.findByText('Ticket number 11')
+
+      await user.type(screen.getByRole('searchbox', { name: 'Search tickets' }), 'number')
+
+      await waitFor(() => expect(lastParams(get)).toMatchObject({ search: 'number', page: 1 }))
+      expect(screen.getByTestId('location-search')).not.toHaveTextContent('page=')
+    })
+
+    it('changing the sort goes back to page 1', async () => {
+      const user = userEvent.setup()
+      const get = mockPages()
+      renderTable('/tickets?page=2')
+      await screen.findByText('Ticket number 11')
+
+      await user.click(screen.getByRole('button', { name: 'Subject' }))
+
+      await waitFor(() => expect(lastParams(get)).toMatchObject({ sortBy: 'subject', page: 1 }))
+      expect(screen.getByTestId('location-search')).toBeEmptyDOMElement()
+    })
+
+    it('moves to the last page when the URL asks for a page past the end', async () => {
+      const get = mockPages()
+      renderTable('/tickets?page=9')
+
+      expect(await screen.findByText('Ticket number 21')).toBeInTheDocument()
+      expect(get).toHaveBeenCalledWith('/api/tickets', expect.objectContaining({ params: expect.objectContaining({ page: 9 }) }))
+      expect(lastParams(get)).toMatchObject({ page: 3 })
+      expect(screen.getByTestId('location-search')).toHaveTextContent('?page=3')
+      expect(screen.getByText('Page 3 of 3')).toBeInTheDocument()
+    })
+
+    it('hides the pagination bar when there are no tickets or the request fails', async () => {
+      mockGet().mockResolvedValue({ data: { tickets: [], total: 0 } })
+      const { unmount } = renderTable()
+      await screen.findByText('No tickets yet.')
+      expect(screen.queryByRole('button', { name: 'Go to next page' })).not.toBeInTheDocument()
+      unmount()
+
+      mockGet().mockRejectedValue(new Error('Request failed with status code 500'))
+      renderTable()
+      await screen.findByRole('alert')
+      expect(screen.queryByRole('button', { name: 'Go to next page' })).not.toBeInTheDocument()
     })
   })
 })

@@ -106,10 +106,62 @@ export const ticketFiltersSchema = z.object({
 
 export type TicketFilters = z.infer<typeof ticketFiltersSchema>;
 
-// Query string of GET /api/tickets: filters plus sorting (newest first by default).
+export const TICKET_PAGE_SIZES = [10, 25, 50] as const;
+export const DEFAULT_TICKET_PAGE_SIZE = 10;
+
+// Query string of GET /api/tickets: filters, sorting (newest first by default)
+// and pagination (1-based page). Query values arrive as strings, hence coerce.
 export const listTicketsQuerySchema = ticketFiltersSchema.extend({
+  page: z.coerce
+    .number({ error: "Page must be a number" })
+    .int("Page must be a whole number")
+    .min(1, "Page must be at least 1")
+    .default(1),
+  pageSize: z.coerce
+    .number({ error: "Page size must be a number" })
+    .refine((size) => (TICKET_PAGE_SIZES as readonly number[]).includes(size), {
+      error: `Page size must be one of ${TICKET_PAGE_SIZES.join(", ")}`,
+    })
+    .default(DEFAULT_TICKET_PAGE_SIZE),
   sortBy: z.enum(TICKET_SORT_FIELDS, { error: "Invalid sort field" }).default("createdAt"),
   sortOrder: z.enum(SORT_ORDERS, { error: "Sort order must be asc or desc" }).default("desc"),
 });
 
 export type ListTicketsQuery = z.infer<typeof listTicketsQuerySchema>;
+
+// Ticket ids are Postgres INTEGERs, so anything above this can't exist.
+const MAX_TICKET_ID = 2_147_483_647;
+
+// Route params of GET /api/tickets/:id (also the /tickets/:id page).
+export const ticketIdParamsSchema = z.object({
+  id: z.coerce
+    .number({ error: "Invalid ticket id" })
+    .int("Invalid ticket id")
+    .positive("Invalid ticket id")
+    .max(MAX_TICKET_ID, "Invalid ticket id"),
+});
+
+export type TicketIdParams = z.infer<typeof ticketIdParamsSchema>;
+
+// Body of PATCH /api/tickets/:id: a partial update, so only the fields sent
+// change (at least one is required).
+// - `assignedToId`: a user id, or null to unassign; the server checks the user
+//   exists and isn't deleted.
+// - `status`: any status; there are no workflow rules between them.
+// - `category`: a category, or null to make the ticket uncategorised again.
+export const updateTicketSchema = z
+  .object({
+    assignedToId: z
+      .string({ error: "Choose an assignee or Unassigned" })
+      .trim()
+      .min(1, "Choose an assignee or Unassigned")
+      .nullable()
+      .optional(),
+    status: z.enum(TICKET_STATUSES, { error: "Invalid status" }).optional(),
+    category: z.enum(TICKET_CATEGORIES, { error: "Invalid category" }).nullable().optional(),
+  })
+  .refine((input) => Object.values(input).some((value) => value !== undefined), {
+    error: "Nothing to update",
+  });
+
+export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;

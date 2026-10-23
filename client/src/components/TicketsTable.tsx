@@ -1,18 +1,22 @@
-import { useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useSearchParams } from 'react-router'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   columnFilteringFeature,
   createColumnHelper,
   functionalUpdate,
   globalFilteringFeature,
+  rowPaginationFeature,
   rowSortingFeature,
   tableFeatures,
   useTable,
   type ColumnFiltersState,
+  type PaginationState,
   type SortingState,
 } from '@tanstack/react-table'
 import {
+  DEFAULT_TICKET_PAGE_SIZE,
+  listTicketsQuerySchema,
   ticketFiltersSchema,
   type ListTicketsQuery,
   type TicketCategoryFilter,
@@ -22,6 +26,7 @@ import {
 } from 'core'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { TicketFilters } from '@/components/TicketFilters'
+import { TicketsPagination } from '@/components/TicketsPagination'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -36,19 +41,14 @@ import {
 import {
   fetchTickets,
   TICKET_CATEGORY_LABELS,
+  TICKET_STATUS_BADGE_VARIANTS,
   TICKET_STATUS_LABELS,
   ticketsListQueryKey,
   type Ticket,
+  type TicketLinkState,
 } from '@/lib/tickets'
 
 const SKELETON_ROW_COUNT = 3
-
-const STATUS_BADGE_VARIANTS = {
-  new: 'default',
-  open: 'secondary',
-  resolved: 'outline',
-  closed: 'outline',
-} as const satisfies Record<TicketStatus, string>
 
 // Matches the server's default order: newest first.
 const DEFAULT_SORTING: SortingState = [{ id: 'createdAt', desc: true }]
@@ -57,15 +57,34 @@ const DEFAULT_SORTING: SortingState = [{ id: 'createdAt', desc: true }]
 // table's global filter.
 const FILTER_KEYS = ['status', 'category'] as const
 const SEARCH_KEY = 'search'
+// Pagination URL params; `page` is 1-based (TanStack's pageIndex is 0-based).
+const PAGE_KEY = 'page'
+const PAGE_SIZE_KEY = 'pageSize'
 
-const features = tableFeatures({ rowSortingFeature, columnFilteringFeature, globalFilteringFeature })
+// Passes the list's query string (search, filters, page) along so the detail
+// page's back link returns to the same view.
+function SubjectLink({ ticket }: { ticket: Ticket }) {
+  const { search } = useLocation()
+  return (
+    <Link to={`/tickets/${ticket.id}`} state={{ from: search } satisfies TicketLinkState} className="hover:underline">
+      {ticket.subject}
+    </Link>
+  )
+}
+
+const features = tableFeatures({
+  rowSortingFeature,
+  columnFilteringFeature,
+  globalFilteringFeature,
+  rowPaginationFeature,
+})
 const columnHelper = createColumnHelper<typeof features, Ticket>()
 
 // Column ids are the server's sort fields (TICKET_SORT_FIELDS).
 const columns = columnHelper.columns([
   columnHelper.accessor('subject', {
     header: 'Subject',
-    cell: ({ getValue }) => getValue(),
+    cell: ({ row }) => <SubjectLink ticket={row.original} />,
   }),
   columnHelper.accessor('senderName', {
     header: 'From',
@@ -79,7 +98,7 @@ const columns = columnHelper.columns([
   columnHelper.accessor('status', {
     header: 'Status',
     cell: ({ getValue }) => (
-      <Badge variant={STATUS_BADGE_VARIANTS[getValue()]}>{TICKET_STATUS_LABELS[getValue()]}</Badge>
+      <Badge variant={TICKET_STATUS_BADGE_VARIANTS[getValue()]}>{TICKET_STATUS_LABELS[getValue()]}</Badge>
     ),
   }),
   columnHelper.accessor('category', {
@@ -118,10 +137,35 @@ function toColumnFilters(filters: TicketFiltersValue): ColumnFiltersState {
   return FILTER_KEYS.flatMap((id) => (filters[id] ? [{ id, value: filters[id] }] : []))
 }
 
-// Sorting is single-column, always set, and done by the server, as is filtering.
-function toListQuery(sorting: SortingState, filters: TicketFiltersValue): ListTicketsQuery {
+// Page 1 and the default page size are left out of the URL; invalid values
+// fall back to them.
+function paginationFromSearchParams(searchParams: URLSearchParams): PaginationState {
+  const page = listTicketsQuerySchema.shape.page.safeParse(searchParams.get(PAGE_KEY) ?? undefined)
+  const pageSize = listTicketsQuerySchema.shape.pageSize.safeParse(searchParams.get(PAGE_SIZE_KEY) ?? undefined)
+  return {
+    pageIndex: page.success ? page.data - 1 : 0,
+    pageSize: pageSize.success ? pageSize.data : DEFAULT_TICKET_PAGE_SIZE,
+  }
+}
+
+function writePagination(params: URLSearchParams, { pageIndex, pageSize }: PaginationState) {
+  if (pageIndex > 0) params.set(PAGE_KEY, String(pageIndex + 1))
+  else params.delete(PAGE_KEY)
+  if (pageSize !== DEFAULT_TICKET_PAGE_SIZE) params.set(PAGE_SIZE_KEY, String(pageSize))
+  else params.delete(PAGE_SIZE_KEY)
+}
+
+// Sorting is single-column, always set, and done by the server, as are
+// filtering and pagination.
+function toListQuery(sorting: SortingState, filters: TicketFiltersValue, pagination: PaginationState): ListTicketsQuery {
   const [sort = DEFAULT_SORTING[0]!] = sorting
-  return { ...filters, sortBy: sort.id as TicketSortField, sortOrder: sort.desc ? 'desc' : 'asc' }
+  return {
+    ...filters,
+    sortBy: sort.id as TicketSortField,
+    sortOrder: sort.desc ? 'desc' : 'asc',
+    page: pagination.pageIndex + 1,
+    pageSize: pagination.pageSize,
+  }
 }
 
 export function TicketsTable() {
@@ -131,29 +175,42 @@ export function TicketsTable() {
   const columnFilters = toColumnFilters(filters)
   // The raw text (untrimmed) so the search box shows exactly what was typed.
   const globalFilter = searchParams.get(SEARCH_KEY) ?? ''
+  const pagination = paginationFromSearchParams(searchParams)
   const isFiltered = columnFilters.length > 0 || filters.search !== undefined
-  const query = toListQuery(sorting, filters)
+  const query = toListQuery(sorting, filters, pagination)
 
-  const { data: tickets, isPending, isError } = useQuery({
+  const { data, isPending, isError } = useQuery({
     queryKey: ticketsListQueryKey(query),
     queryFn: ({ signal }) => fetchTickets(query, signal),
-    // Keep showing the current rows while a new sort order loads.
+    // Keep showing the current rows while another page, filter or sort loads.
     placeholderData: keepPreviousData,
   })
+  const tickets = data?.tickets
+  const total = data?.total ?? 0
 
   const table = useTable({
     features,
     columns,
     data: tickets ?? [],
     getRowId: (ticket) => String(ticket.id),
-    state: { sorting, columnFilters, globalFilter },
-    onSortingChange: setSorting,
+    rowCount: total,
+    state: { sorting, columnFilters, globalFilter, pagination },
+    // Changing the sort, filters or search goes back to page 1 (in the same
+    // URL update, as consecutive setSearchParams calls overwrite each other).
+    onSortingChange: (updater) => {
+      setSorting(updater)
+      setSearchParams((params) => {
+        params.delete(PAGE_KEY)
+        return params
+      })
+    },
     // Write filter changes back to the URL, keeping any other params.
     onColumnFiltersChange: (updater) => {
       const next = functionalUpdate(updater, columnFilters)
       setSearchParams((params) => {
         for (const key of FILTER_KEYS) params.delete(key)
         for (const { id, value } of next) if (value) params.set(id, String(value))
+        params.delete(PAGE_KEY)
         return params
       })
     },
@@ -164,13 +221,24 @@ export function TicketsTable() {
         (params) => {
           if (next) params.set(SEARCH_KEY, next)
           else params.delete(SEARCH_KEY)
+          params.delete(PAGE_KEY)
           return params
         },
         { replace: true },
       )
     },
+    onPaginationChange: (updater) => {
+      const next = functionalUpdate(updater, pagination)
+      setSearchParams((params) => {
+        writePagination(params, next)
+        return params
+      })
+    },
     manualSorting: true,
     manualFiltering: true,
+    manualPagination: true,
+    // Resets are done explicitly above, in the URL.
+    autoResetPageIndex: false,
     enableMultiSort: false,
     enableSortingRemoval: false,
     sortDescFirst: false,
@@ -178,6 +246,23 @@ export function TicketsTable() {
 
   const statusColumn = table.getColumn('status')
   const categoryColumn = table.getColumn('category')
+  const pageCount = table.getPageCount()
+
+  // A page past the end (e.g. ?page=9 after the list shrank) comes back empty
+  // with the real total: move to the last page that has tickets.
+  const isPastLastPage = data !== undefined && total > 0 && pagination.pageIndex >= pageCount
+  const { pageSize } = pagination
+  useEffect(() => {
+    if (isPastLastPage) {
+      setSearchParams(
+        (params) => {
+          writePagination(params, { pageIndex: pageCount - 1, pageSize })
+          return params
+        },
+        { replace: true },
+      )
+    }
+  }, [isPastLastPage, pageCount, pageSize, setSearchParams])
 
   return (
     <div className="space-y-4">
@@ -192,7 +277,7 @@ export function TicketsTable() {
         // each other.
         onClear={() =>
           setSearchParams((params) => {
-            for (const key of [...FILTER_KEYS, SEARCH_KEY]) params.delete(key)
+            for (const key of [...FILTER_KEYS, SEARCH_KEY, PAGE_KEY]) params.delete(key)
             return params
           })
         }
@@ -243,7 +328,7 @@ export function TicketsTable() {
                   ))}
                 </TableRow>
               ))
-            ) : tickets.length === 0 ? (
+            ) : tickets === undefined || tickets.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
                   {isFiltered ? 'No tickets match these filters.' : 'No tickets yet.'}
@@ -266,6 +351,22 @@ export function TicketsTable() {
           </TableBody>
         </Table>
       </div>
+      {!isError && total > 0 && !isPastLastPage && (
+        <TicketsPagination
+          pageIndex={pagination.pageIndex}
+          pageSize={pagination.pageSize}
+          pageCount={pageCount}
+          total={total}
+          canPreviousPage={table.getCanPreviousPage()}
+          canNextPage={table.getCanNextPage()}
+          onFirstPage={() => table.firstPage()}
+          onPreviousPage={() => table.previousPage()}
+          onNextPage={() => table.nextPage()}
+          onLastPage={() => table.lastPage()}
+          // A new page size starts again at page 1.
+          onPageSizeChange={(pageSize) => table.setPagination({ pageIndex: 0, pageSize })}
+        />
+      )}
     </div>
   )
 }

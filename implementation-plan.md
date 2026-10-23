@@ -27,11 +27,11 @@
 ## Phase 4: Ticket CRUD
 
 - [ ] Implement create ticket API endpoint
-- [x] Implement list tickets API endpoint (with filtering by status and category, sorting) — status/category filters and sorting done; pagination pending
-- [ ] Implement get ticket API endpoint
-- [ ] Implement update ticket API endpoint (change status, assign agent)
-- [x] Create ticket list page with filtering and sorting — filters (in the URL) and sortable headers done (TanStack Table, server-side); pagination pending
-- [ ] Create ticket detail page
+- [x] Implement list tickets API endpoint (with filtering by status and category, sorting)
+- [x] Implement get ticket API endpoint
+- [x] Implement update ticket API endpoint (change status, assign agent) — `PATCH /api/tickets/:id` (status, category, assignee) with dropdowns on the detail page
+- [x] Create ticket list page with filtering and sorting — search, status/category filters, sortable headers and pagination (TanStack Table, server-side, state in the URL)
+- [x] Create ticket detail page — read-only (details and plain-text opening email); actions come with the update endpoint
 
 ## Phase 5: AI Features
 

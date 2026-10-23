@@ -1,4 +1,10 @@
-import { listTicketsQuerySchema, type SortOrder, type TicketSortField } from "core";
+import {
+  listTicketsQuerySchema,
+  ticketIdParamsSchema,
+  updateTicketSchema,
+  type SortOrder,
+  type TicketSortField,
+} from "core";
 import { Router } from "express";
 import { prisma } from "../db";
 import type { Prisma } from "../generated/prisma/client";
@@ -37,27 +43,119 @@ function searchFields(search: string): Prisma.TicketWhereInput[] {
   }));
 }
 
-// Optional search and status/category filters, then sorting; id breaks ties so the order
-// is stable (e.g. tickets created in the same millisecond). No pagination yet:
-// returns every matching ticket.
+// Optional search and status/category filters, then sorting; id breaks ties so
+// the order is stable (e.g. tickets created in the same millisecond) and pages
+// don't overlap. Returns one page plus the total number of matching tickets; a
+// page past the end is empty but still reports the total.
 ticketsRouter.get("/", async (req, res) => {
   const parsed = listTicketsQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request" });
     return;
   }
-  const { search, status, category, sortBy, sortOrder } = parsed.data;
+  const { search, status, category, sortBy, sortOrder, page, pageSize } = parsed.data;
 
-  const tickets = await prisma.ticket.findMany({
-    // Unset filters are undefined, which Prisma ignores; "none" matches
-    // tickets that have no category yet.
-    where: {
-      status,
-      category: category === "none" ? null : category,
-      OR: search ? searchFields(search) : undefined,
-    },
-    select: ticketListSelect,
-    orderBy: [ticketOrderBy(sortBy, sortOrder), { id: sortOrder }],
+  // Unset filters are undefined, which Prisma ignores; "none" matches tickets
+  // that have no category yet.
+  const where: Prisma.TicketWhereInput = {
+    status,
+    category: category === "none" ? null : category,
+    OR: search ? searchFields(search) : undefined,
+  };
+
+  // One transaction so the total matches the page it's returned with.
+  const [tickets, total] = await prisma.$transaction([
+    prisma.ticket.findMany({
+      where,
+      select: ticketListSelect,
+      orderBy: [ticketOrderBy(sortBy, sortOrder), { id: sortOrder }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.ticket.count({ where }),
+  ]);
+  res.json({ tickets, total });
+});
+
+// People a ticket can be assigned to: every active user (agents and admins),
+// for the assignee dropdown. Registered before "/:id" so "assignees" isn't
+// read as a ticket id. /api/users is admin-only, so agents need this instead.
+ticketsRouter.get("/assignees", async (_req, res) => {
+  const users = await prisma.user.findMany({
+    where: { deletedAt: null },
+    select: { id: true, name: true },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
   });
-  res.json({ tickets });
+  res.json({ users });
+});
+
+// One ticket with its opening email. Explicit fields as above: bodyHtml
+// (untrusted sender HTML) and the email Message-ID stay server-side.
+const ticketDetailSelect = {
+  ...ticketListSelect,
+  body: true,
+  updatedAt: true,
+} as const satisfies Prisma.TicketSelect;
+
+ticketsRouter.get("/:id", async (req, res) => {
+  const parsed = ticketIdParamsSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request" });
+    return;
+  }
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: parsed.data.id },
+    select: ticketDetailSelect,
+  });
+  if (!ticket) {
+    res.status(404).json({ error: "Ticket not found" });
+    return;
+  }
+  res.json({ ticket });
+});
+
+// Partially update a ticket: assign it (to an active user, or null to
+// unassign), change its status, or set its category (null = uncategorised).
+// Admins and agents can both do this. Returns the updated ticket like GET /:id.
+ticketsRouter.patch("/:id", async (req, res) => {
+  const params = ticketIdParamsSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? "Invalid request" });
+    return;
+  }
+  const body = updateTicketSchema.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.issues[0]?.message ?? "Invalid request" });
+    return;
+  }
+  const { id } = params.data;
+  const { assignedToId, status, category } = body.data;
+
+  const existing = await prisma.ticket.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) {
+    res.status(404).json({ error: "Ticket not found" });
+    return;
+  }
+
+  // Deleted users can't be assigned new tickets. Only checked when an
+  // assignee is sent (undefined leaves it unchanged, null unassigns).
+  if (assignedToId) {
+    const assignee = await prisma.user.findFirst({
+      where: { id: assignedToId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!assignee) {
+      res.status(400).json({ error: "Assignee not found" });
+      return;
+    }
+  }
+
+  // Undefined fields are left as they are by Prisma.
+  const ticket = await prisma.ticket.update({
+    where: { id },
+    data: { assignedToId, status, category },
+    select: ticketDetailSelect,
+  });
+  res.json({ ticket });
 });

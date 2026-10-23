@@ -27,6 +27,7 @@ describe('TicketsPage', () => {
             assignedTo: null,
           },
         ],
+        total: 1,
       },
     })
     renderWithQueryClient(
