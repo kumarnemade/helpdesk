@@ -9,6 +9,7 @@ import { requireWebhookSecret } from "./middleware/requireWebhookSecret";
 import { healthRouter } from "./routes/health";
 import { inboundEmailRouter } from "./routes/inboundEmail";
 import { meRouter } from "./routes/me";
+import { ticketsRouter } from "./routes/tickets";
 import { usersRouter } from "./routes/users";
 
 export const app = express();
@@ -46,6 +47,7 @@ app.use(express.json());
 
 app.use("/api/health", healthRouter);
 app.use("/api/me", requireAuth, meRouter);
+app.use("/api/tickets", requireAuth, ticketsRouter);
 app.use("/api/users", requireAuth, requireRole("admin"), usersRouter);
 
 // 404 for unmatched API routes

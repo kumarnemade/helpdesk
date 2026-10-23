@@ -67,3 +67,26 @@ export const receiveEmailSchema = z.object({
 });
 
 export type ReceiveEmailInput = z.infer<typeof receiveEmailSchema>;
+
+// Columns GET /api/tickets can sort by; they double as the tickets table's
+// column ids. `assignedTo` sorts by the assignee's name.
+export const TICKET_SORT_FIELDS = [
+  "subject",
+  "senderName",
+  "status",
+  "category",
+  "assignedTo",
+  "createdAt",
+] as const;
+export const SORT_ORDERS = ["asc", "desc"] as const;
+
+export type TicketSortField = (typeof TICKET_SORT_FIELDS)[number];
+export type SortOrder = (typeof SORT_ORDERS)[number];
+
+// Query string of GET /api/tickets. Defaults to newest first.
+export const listTicketsQuerySchema = z.object({
+  sortBy: z.enum(TICKET_SORT_FIELDS, { error: "Invalid sort field" }).default("createdAt"),
+  sortOrder: z.enum(SORT_ORDERS, { error: "Sort order must be asc or desc" }).default("desc"),
+});
+
+export type ListTicketsQuery = z.infer<typeof listTicketsQuerySchema>;

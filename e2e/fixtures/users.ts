@@ -37,3 +37,5 @@ export const CLIENT_ORIGIN = "http://localhost:5174";
 export const AUTH_DIR = resolve(import.meta.dirname, "../playwright/.auth");
 export const ADMIN_STATE = resolve(AUTH_DIR, "admin.json");
 export const AGENT_STATE = resolve(AUTH_DIR, "agent.json");
+export const INBOUND_EMAIL_SECRET = need("INBOUND_EMAIL_SECRET");
+export const API_URL = "http://localhost:3001";
