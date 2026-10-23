@@ -214,6 +214,68 @@ test.describe("Ticket sorting", () => {
   });
 });
 
+// Server-side filtering. Webhook tickets are always new and uncategorised, so
+// ours must match those filters and be excluded by any other value.
+test.describe("Ticket filtering (GET /api/tickets)", () => {
+  test.use({ storageState: ADMIN_STATE });
+
+  async function list(request: APIRequestContext, query: string) {
+    const res = await request.get(`${API_URL}/api/tickets?${query}`);
+    expect(res.status()).toBe(200);
+    return ((await res.json()) as { tickets: Array<{ id: number; status: string; category: string | null }> })
+      .tickets;
+  }
+
+  test("filters by status and category, with category=none for uncategorised", async ({ request }) => {
+    const mine = await createTicket(request, "Filter target");
+
+    const newUncategorised = await list(request, "status=new&category=none");
+    expect(newUncategorised.map((t) => t.id)).toContain(mine.id);
+    for (const t of newUncategorised) expect(t).toMatchObject({ status: "new", category: null });
+
+    const closed = await list(request, "status=closed");
+    expect(closed.map((t) => t.id)).not.toContain(mine.id);
+    for (const t of closed) expect(t.status).toBe("closed");
+
+    const refunds = await list(request, "category=refund_request");
+    expect(refunds.map((t) => t.id)).not.toContain(mine.id);
+    for (const t of refunds) expect(t.category).toBe("refund_request");
+  });
+
+  test("searches subject, sender name and sender email case-insensitively", async ({ request }) => {
+    const mine = await createTicket(request, "Searchable Invoice");
+    const id = mine.subject.split(" ").at(-1)!;
+    const ids = async (search: string) =>
+      (await list(request, `search=${encodeURIComponent(search)}`)).map((t) => t.id);
+
+    // Subject, in a different case.
+    expect(await ids(`SEARCHABLE INVOICE ${id.toUpperCase()}`)).toContain(mine.id);
+    // Sender name ("Customer <id>") and sender email ("customer-<id>@example.com").
+    expect(await ids(mine.name.toLowerCase())).toContain(mine.id);
+    expect(await ids(mine.email.toUpperCase())).toContain(mine.id);
+    // Combined with a filter it can't match.
+    expect((await list(request, `search=${id}&status=closed`)).map((t) => t.id)).not.toContain(mine.id);
+    // LIKE wildcards are literal: "%" doesn't match everything.
+    expect(await ids(`${id}%`)).not.toContain(mine.id);
+  });
+
+  test("rejects a search longer than 200 characters with 400", async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/tickets?search=${"a".repeat(201)}`);
+    expect(res.status()).toBe(400);
+    expect(await res.json()).toEqual({ error: "Search must be at most 200 characters" });
+  });
+
+  test("rejects invalid filter values with 400", async ({ request }) => {
+    const status = await request.get(`${API_URL}/api/tickets?status=bogus`);
+    expect(status.status()).toBe(400);
+    expect(await status.json()).toEqual({ error: "Invalid status filter" });
+
+    const category = await request.get(`${API_URL}/api/tickets?category=spam`);
+    expect(category.status()).toBe(400);
+    expect(await category.json()).toEqual({ error: "Invalid category filter" });
+  });
+});
+
 test.describe("Unauthenticated access", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 

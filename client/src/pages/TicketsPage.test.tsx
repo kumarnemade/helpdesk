@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router'
 import { renderWithQueryClient } from '@/test/render'
 import { TicketsPage } from './TicketsPage'
 
@@ -28,7 +29,11 @@ describe('TicketsPage', () => {
         ],
       },
     })
-    renderWithQueryClient(<TicketsPage />)
+    renderWithQueryClient(
+      <MemoryRouter>
+        <TicketsPage />
+      </MemoryRouter>,
+    )
 
     expect(screen.getByRole('heading', { name: 'Tickets' })).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()

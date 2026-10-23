@@ -83,8 +83,31 @@ export const SORT_ORDERS = ["asc", "desc"] as const;
 export type TicketSortField = (typeof TICKET_SORT_FIELDS)[number];
 export type SortOrder = (typeof SORT_ORDERS)[number];
 
-// Query string of GET /api/tickets. Defaults to newest first.
-export const listTicketsQuerySchema = z.object({
+// Category filter values: a category, or "none" for tickets without one.
+export const TICKET_CATEGORY_FILTERS = [...TICKET_CATEGORIES, "none"] as const;
+
+export type TicketCategoryFilter = (typeof TICKET_CATEGORY_FILTERS)[number];
+
+export const MAX_TICKET_SEARCH_LENGTH = 200;
+
+// Optional filters of GET /api/tickets (also the /tickets page's URL params).
+// `search` is a case-insensitive text match on subject, sender name or sender
+// email; blank searches become undefined.
+export const ticketFiltersSchema = z.object({
+  search: z
+    .string()
+    .trim()
+    .max(MAX_TICKET_SEARCH_LENGTH, `Search must be at most ${MAX_TICKET_SEARCH_LENGTH} characters`)
+    .transform((search) => search || undefined)
+    .optional(),
+  status: z.enum(TICKET_STATUSES, { error: "Invalid status filter" }).optional(),
+  category: z.enum(TICKET_CATEGORY_FILTERS, { error: "Invalid category filter" }).optional(),
+});
+
+export type TicketFilters = z.infer<typeof ticketFiltersSchema>;
+
+// Query string of GET /api/tickets: filters plus sorting (newest first by default).
+export const listTicketsQuerySchema = ticketFiltersSchema.extend({
   sortBy: z.enum(TICKET_SORT_FIELDS, { error: "Invalid sort field" }).default("createdAt"),
   sortOrder: z.enum(SORT_ORDERS, { error: "Sort order must be asc or desc" }).default("desc"),
 });

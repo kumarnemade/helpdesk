@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ListTicketsQuery, TicketCategory, TicketStatus } from 'core'
+import type { ListTicketsQuery, TicketCategory, TicketCategoryFilter, TicketStatus } from 'core'
 
 export type Ticket = {
   id: number
@@ -19,7 +19,7 @@ export function ticketsListQueryKey(query: ListTicketsQuery) {
   return [...ticketsQueryKey, query] as const
 }
 
-// The server sorts; tickets come back in the requested order.
+// The server filters and sorts; tickets come back in the requested order.
 export async function fetchTickets(query: ListTicketsQuery, signal?: AbortSignal) {
   const { data } = await axios.get<{ tickets: Ticket[] }>('/api/tickets', { params: query, signal })
   return data.tickets
@@ -36,4 +36,9 @@ export const TICKET_CATEGORY_LABELS: Record<TicketCategory, string> = {
   general_question: 'General question',
   technical_question: 'Technical question',
   refund_request: 'Refund request',
+}
+
+export const TICKET_CATEGORY_FILTER_LABELS: Record<TicketCategoryFilter, string> = {
+  ...TICKET_CATEGORY_LABELS,
+  none: 'Uncategorised',
 }
