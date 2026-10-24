@@ -1,5 +1,6 @@
 import { receiveEmailSchema, type ReceiveEmailInput } from "core";
 import { Router } from "express";
+import { classifyNewTicket } from "../classifyTicket";
 import { prisma } from "../db";
 import { Prisma } from "../generated/prisma/client";
 
@@ -91,6 +92,9 @@ inboundEmailRouter.post("/", async (req, res) => {
       select: { id: true },
     });
     res.status(201).json({ ticketId: ticket.id, created: true });
+    // Classify in the background: the provider gets its response right away
+    // and the category is filled in when the model answers.
+    void classifyNewTicket(ticket.id);
   } catch (err) {
     // Two deliveries of the same email raced past the duplicate check.
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
