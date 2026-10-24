@@ -165,3 +165,20 @@ export const updateTicketSchema = z
   });
 
 export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;
+
+// Mirror the ReplySender enum in server/prisma/schema.prisma.
+export const REPLY_SENDER_TYPES = ["customer", "agent"] as const;
+
+export type ReplySenderType = (typeof REPLY_SENDER_TYPES)[number];
+
+// Body of POST /api/tickets/:id/replies: an agent's reply to a ticket. The
+// author, sender name and email come from the signed-in user on the server.
+export const createReplySchema = z.object({
+  body: z
+    .string({ error: "Reply cannot be empty" })
+    .trim()
+    .min(1, "Reply cannot be empty")
+    .max(MAX_EMAIL_BODY_LENGTH, `Reply must be at most ${MAX_EMAIL_BODY_LENGTH} characters`),
+});
+
+export type CreateReplyInput = z.infer<typeof createReplySchema>;

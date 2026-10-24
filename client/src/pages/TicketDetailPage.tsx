@@ -1,38 +1,20 @@
 import type { ReactNode } from 'react'
-import { Link, useLocation, useParams } from 'react-router'
+import { useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { ticketIdParamsSchema } from 'core'
-import { ArrowLeft } from 'lucide-react'
 import { AssigneeSelect } from '@/components/AssigneeSelect'
+import { BackToTickets } from '@/components/BackToTickets'
 import { CategorySelect } from '@/components/CategorySelect'
+import { ReplyForm } from '@/components/ReplyForm'
+import { ReplyThread } from '@/components/ReplyThread'
 import { StatusSelect } from '@/components/StatusSelect'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  fetchTicket,
-  ticketQueryKey,
-  type TicketDetail,
-  type TicketLinkState,
-} from '@/lib/tickets'
+import { fetchTicket, ticketQueryKey, type TicketDetail } from '@/lib/tickets'
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString()
-}
-
-// Returns to the list view the ticket was opened from (search, filters, page),
-// or the plain list when the page was opened directly.
-function BackToTickets() {
-  const state = useLocation().state as TicketLinkState | null
-  return (
-    <Button variant="ghost" size="sm" className="-ml-2.5" asChild>
-      <Link to={`/tickets${state?.from ?? ''}`}>
-        <ArrowLeft />
-        Back to tickets
-      </Link>
-    </Button>
-  )
 }
 
 export function TicketDetailPage() {
@@ -109,6 +91,14 @@ function TicketDetailView({ ticket }: { ticket: TicketDetail }) {
             <p className="text-sm whitespace-pre-wrap break-words">{ticket.body}</p>
           </CardContent>
         </Card>
+
+        <section aria-labelledby="replies-heading" className="space-y-4">
+          <h2 id="replies-heading" className="text-lg font-semibold">
+            Replies
+          </h2>
+          <ReplyThread ticketId={ticket.id} />
+          <ReplyForm ticketId={ticket.id} />
+        </section>
       </div>
 
       <aside aria-label="Ticket properties">

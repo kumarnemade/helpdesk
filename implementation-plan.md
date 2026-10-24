@@ -32,6 +32,7 @@
 - [x] Implement update ticket API endpoint (change status, assign agent) — `PATCH /api/tickets/:id` (status, category, assignee) with dropdowns on the detail page
 - [x] Create ticket list page with filtering and sorting — search, status/category filters, sortable headers and pagination (TanStack Table, server-side, state in the URL)
 - [x] Create ticket detail page — read-only (details and plain-text opening email); actions come with the update endpoint
+- [x] Reply to tickets — reply thread (customer and agent replies) and a reply form on the detail page (`GET`/`POST /api/tickets/:id/replies`); no outbound email yet
 
 ## Phase 5: AI Features
 

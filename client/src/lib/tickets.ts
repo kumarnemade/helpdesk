@@ -1,6 +1,8 @@
 import axios from 'axios'
 import type {
+  CreateReplyInput,
   ListTicketsQuery,
+  ReplySenderType,
   TicketCategory,
   TicketCategoryFilter,
   TicketStatus,
@@ -62,6 +64,34 @@ export async function fetchTicket(id: number, signal?: AbortSignal) {
 export async function updateTicket(id: number, input: UpdateTicketInput) {
   const { data } = await axios.patch<{ ticket: TicketDetail }>(`/api/tickets/${id}`, input)
   return data.ticket
+}
+
+// One message in a ticket's thread: a customer email or an agent reply
+// (`author` is the agent who wrote it; null for customer replies).
+export type TicketReply = {
+  id: number
+  body: string
+  senderType: ReplySenderType
+  senderName: string
+  senderEmail: string
+  createdAt: string
+  author: { id: string; name: string } | null
+}
+
+// Under the ticket's detail key, so invalidating the tickets prefix refreshes it too.
+export function ticketRepliesQueryKey(id: number) {
+  return [...ticketQueryKey(id), 'replies'] as const
+}
+
+// Oldest first.
+export async function fetchTicketReplies(id: number, signal?: AbortSignal) {
+  const { data } = await axios.get<{ replies: TicketReply[] }>(`/api/tickets/${id}/replies`, { signal })
+  return data.replies
+}
+
+export async function createTicketReply(id: number, input: CreateReplyInput) {
+  const { data } = await axios.post<{ reply: TicketReply }>(`/api/tickets/${id}/replies`, input)
+  return data.reply
 }
 
 // Active users a ticket can be assigned to (agents and admins).

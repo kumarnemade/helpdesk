@@ -1,4 +1,5 @@
 import {
+  createReplySchema,
   listTicketsQuerySchema,
   ticketIdParamsSchema,
   updateTicketSchema,
@@ -158,4 +159,74 @@ ticketsRouter.patch("/:id", async (req, res) => {
     select: ticketDetailSelect,
   });
   res.json({ ticket });
+});
+
+// Replies in a ticket's thread: customer emails and agent replies. Explicit
+// fields as above: bodyHtml (untrusted sender HTML) and the Message-ID stay
+// server-side.
+const replySelect = {
+  id: true,
+  body: true,
+  senderType: true,
+  senderName: true,
+  senderEmail: true,
+  createdAt: true,
+  author: { select: { id: true, name: true } },
+} as const satisfies Prisma.ReplySelect;
+
+// The ticket's replies, oldest first (id breaks ties) so the thread reads top
+// to bottom.
+ticketsRouter.get("/:id/replies", async (req, res) => {
+  const parsed = ticketIdParamsSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request" });
+    return;
+  }
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: parsed.data.id },
+    select: { replies: { select: replySelect, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
+  });
+  if (!ticket) {
+    res.status(404).json({ error: "Ticket not found" });
+    return;
+  }
+  res.json({ replies: ticket.replies });
+});
+
+// Add an agent reply, written by the signed-in user (admins and agents). The
+// sender name and email are the user's own, never taken from the request.
+// The ticket's status is left unchanged, and no email is sent yet.
+ticketsRouter.post("/:id/replies", async (req, res) => {
+  const params = ticketIdParamsSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? "Invalid request" });
+    return;
+  }
+  const body = createReplySchema.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.issues[0]?.message ?? "Invalid request" });
+    return;
+  }
+  const { id } = params.data;
+
+  const existing = await prisma.ticket.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) {
+    res.status(404).json({ error: "Ticket not found" });
+    return;
+  }
+
+  const { user } = res.locals;
+  const reply = await prisma.reply.create({
+    data: {
+      ticketId: id,
+      body: body.data.body,
+      senderType: "agent",
+      senderName: user.name,
+      senderEmail: user.email,
+      authorId: user.id,
+    },
+    select: replySelect,
+  });
+  res.status(201).json({ reply });
 });

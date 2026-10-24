@@ -1,10 +1,9 @@
 import axios, { AxiosError, AxiosHeaders } from 'axios'
 import { screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test/render'
-import type { TicketDetail } from '@/lib/tickets'
+import type { TicketDetail, TicketReply } from '@/lib/tickets'
 import { TicketDetailPage } from './TicketDetailPage'
 
 const ticket: TicketDetail = {
@@ -20,18 +19,29 @@ const ticket: TicketDetail = {
   body: 'My card was charged $199 twice.\nPlease refund the duplicate payment.',
 }
 
-// Shows where the back link went, so tests can check the list's query string.
-function TicketsListProbe() {
-  const { search } = useLocation()
-  return <p>Tickets list{search}</p>
+const reply: TicketReply = {
+  id: 1,
+  body: 'Any update on my refund?',
+  senderType: 'customer',
+  senderName: 'Priya Shah',
+  senderEmail: 'priya@example.com',
+  createdAt: '2026-10-22T09:00:00.000Z',
+  author: null,
 }
 
-function renderPage(path = '/tickets/42', state?: unknown) {
+// Answers the ticket request with `ticketResponse` and the replies request
+// (covered in ReplyThread.test.tsx) with one reply.
+function mockGet(ticketResponse: unknown = { ticket }) {
+  return vi.spyOn(axios, 'get').mockImplementation(async (url: string) =>
+    url.endsWith('/replies') ? { data: { replies: [reply] } } : { data: ticketResponse },
+  )
+}
+
+function renderPage(path = '/tickets/42') {
   return renderWithQueryClient(
-    <MemoryRouter initialEntries={[{ pathname: path, state }]}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/tickets/:id" element={<TicketDetailPage />} />
-        <Route path="/tickets" element={<TicketsListProbe />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -53,7 +63,7 @@ afterEach(() => {
 
 describe('TicketDetailPage', () => {
   it('requests the ticket from the id in the URL with an abort signal', async () => {
-    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket } })
+    const get = mockGet()
     renderPage()
 
     await screen.findByRole('heading', { name: ticket.subject })
@@ -72,7 +82,7 @@ describe('TicketDetailPage', () => {
   })
 
   it('shows the ticket details and the opening email', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket } })
+    mockGet()
     renderPage()
 
     expect(await screen.findByRole('heading', { level: 1, name: ticket.subject })).toBeInTheDocument()
@@ -93,7 +103,7 @@ describe('TicketDetailPage', () => {
   })
 
   it('puts the status, category and assignee dropdowns in the right-hand column', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket } })
+    mockGet()
     renderPage()
     await screen.findByRole('heading', { name: ticket.subject })
 
@@ -109,12 +119,24 @@ describe('TicketDetailPage', () => {
   })
 
   it('shows "Uncategorised" and "Unassigned" when there is no category or assignee', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket: { ...ticket, category: null, assignedTo: null } } })
+    mockGet({ ticket: { ...ticket, category: null, assignedTo: null } })
     renderPage()
 
     await screen.findByRole('heading', { name: ticket.subject })
     expect(screen.getByText('Category', { selector: 'dt' }).nextElementSibling).toHaveTextContent('Uncategorised')
     expect(screen.getByText('Assigned to', { selector: 'dt' }).nextElementSibling).toHaveTextContent('Unassigned')
+  })
+
+  it('shows the reply thread and the reply form below the opening email', async () => {
+    mockGet()
+    renderPage()
+
+    const section = await screen.findByRole('region', { name: 'Replies' })
+    expect(await within(section).findByText('Any update on my refund?')).toBeInTheDocument()
+    expect(within(section).getByLabelText('Reply')).toBeInTheDocument()
+    expect(within(section).getByRole('button', { name: 'Send reply' })).toBeInTheDocument()
+    // The thread and form stay in the main column, not the sidebar.
+    expect(within(screen.getByRole('complementary', { name: 'Ticket properties' })).queryByLabelText('Reply')).not.toBeInTheDocument()
   })
 
   it('shows "Ticket not found" when the server returns 404', async () => {
@@ -141,22 +163,12 @@ describe('TicketDetailPage', () => {
     expect(screen.queryByText('Loading ticket…')).not.toBeInTheDocument()
   })
 
-  it('goes back to the list view it was opened from', async () => {
-    const user = userEvent.setup()
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket } })
-    renderPage('/tickets/42', { from: '?status=open&page=2' })
-    await screen.findByRole('heading', { name: ticket.subject })
-
-    await user.click(screen.getByRole('link', { name: 'Back to tickets' }))
-
-    expect(screen.getByText('Tickets list?status=open&page=2')).toBeInTheDocument()
-  })
-
-  it('goes back to the plain list when opened directly', async () => {
-    vi.spyOn(axios, 'get').mockResolvedValue({ data: { ticket } })
+  // Where it leads is covered in BackToTickets.test.tsx.
+  it('shows a link back to the tickets list', async () => {
+    mockGet()
     renderPage()
     await screen.findByRole('heading', { name: ticket.subject })
 
-    expect(screen.getByRole('link', { name: 'Back to tickets' })).toHaveAttribute('href', '/tickets')
+    expect(screen.getByRole('link', { name: 'Back to tickets' })).toBeInTheDocument()
   })
 })
