@@ -1,28 +1,29 @@
-import { aiConfigured, classifyTicket } from "./ai";
+import { z } from "zod";
+import { classifyTicket } from "./ai";
 import { prisma } from "./db";
 
 const CLASSIFY_TIMEOUT_MS = 30_000;
 
-// Sets the category of a newly created ticket with AI. Meant to run in the
-// background after the inbound-email webhook has responded, so it never
-// throws: on any failure the ticket stays uncategorised for an agent to set.
-// A category an agent picked in the meantime is never overwritten.
-export async function classifyNewTicket(ticketId: number) {
-  if (!aiConfigured) return;
-  try {
-    const ticket = await prisma.ticket.findUnique({
-      where: { id: ticketId },
-      select: { subject: true, body: true, category: true },
-    });
-    if (!ticket || ticket.category) return;
+// job.data comes back from the database untyped.
+const classifyTicketJobSchema = z.object({ ticketId: z.number().int().positive() });
 
-    const category = await classifyTicket({
-      subject: ticket.subject,
-      body: ticket.body,
-      signal: AbortSignal.timeout(CLASSIFY_TIMEOUT_MS),
-    });
-    await prisma.ticket.updateMany({ where: { id: ticketId, category: null }, data: { category } });
-  } catch (err) {
-    console.error(`Failed to classify ticket ${ticketId}:`, err);
-  }
+// pg-boss worker for CLASSIFY_TICKET_QUEUE: sets a new ticket's category with
+// AI. Errors are thrown so pg-boss marks the job failed and retries it. A
+// deleted ticket, or one that already has a category (e.g. set by an agent
+// while the job waited), is left alone, and an agent's choice is never
+// overwritten.
+export async function classifyTicketJob(data: unknown, signal: AbortSignal) {
+  const { ticketId } = classifyTicketJobSchema.parse(data);
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: ticketId },
+    select: { subject: true, body: true, category: true },
+  });
+  if (!ticket || ticket.category) return;
+
+  const category = await classifyTicket({
+    subject: ticket.subject,
+    body: ticket.body,
+    signal: AbortSignal.any([signal, AbortSignal.timeout(CLASSIFY_TIMEOUT_MS)]),
+  });
+  await prisma.ticket.updateMany({ where: { id: ticketId, category: null }, data: { category } });
 }

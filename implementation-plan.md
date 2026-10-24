@@ -37,7 +37,7 @@
 ## Phase 5: AI Features
 
 - [ ] Set up Claude API integration
-- [x] Implement auto-classification (categorize incoming tickets) — new tickets from the inbound-email webhook are classified in the background with Gemini (`Output.choice` over the ticket categories); never overwrites a category set by an agent
+- [x] Implement auto-classification (categorize incoming tickets) — new tickets from the inbound-email webhook are classified by a pg-boss background job (queued in the ticket's transaction, retried on failure, survives restarts) with Gemini (`Output.choice` over the ticket categories); never overwrites a category set by an agent
 - [x] Implement AI summary endpoint (generate ticket summary) — `POST /api/tickets/:id/summary` (Gemini via the Vercel AI SDK) with a "Summarize" button below the opening email; regenerated on every click, never saved
 - [ ] Implement AI suggested reply endpoint
 - [ ] Build knowledge base structure and seed with initial content

@@ -1,8 +1,10 @@
 import { receiveEmailSchema, type ReceiveEmailInput } from "core";
 import { Router } from "express";
-import { classifyNewTicket } from "../classifyTicket";
+import { fromPrisma } from "pg-boss";
+import { aiConfigured } from "../ai";
 import { prisma } from "../db";
 import { Prisma } from "../generated/prisma/client";
+import { boss, CLASSIFY_TICKET_QUEUE, type ClassifyTicketJob } from "../queue";
 
 export const inboundEmailRouter = Router();
 
@@ -80,21 +82,28 @@ inboundEmailRouter.post("/", async (req, res) => {
       return;
     }
 
-    const ticket = await prisma.ticket.create({
-      data: {
-        subject: email.subject,
-        body: email.text,
-        bodyHtml: email.html,
-        senderName: email.fromName,
-        senderEmail: email.from,
-        emailMessageId: email.messageId,
-      },
-      select: { id: true },
+    // The classification job is queued in the same transaction, so it exists
+    // exactly when the ticket does. A pg-boss worker sets the category later;
+    // the provider gets its response right away.
+    const ticket = await prisma.$transaction(async (tx) => {
+      const created = await tx.ticket.create({
+        data: {
+          subject: email.subject,
+          body: email.text,
+          bodyHtml: email.html,
+          senderName: email.fromName,
+          senderEmail: email.from,
+          emailMessageId: email.messageId,
+        },
+        select: { id: true },
+      });
+      if (aiConfigured) {
+        const job: ClassifyTicketJob = { ticketId: created.id };
+        await boss.send(CLASSIFY_TICKET_QUEUE, job, { db: fromPrisma(tx) });
+      }
+      return created;
     });
     res.status(201).json({ ticketId: ticket.id, created: true });
-    // Classify in the background: the provider gets its response right away
-    // and the category is filled in when the model answers.
-    void classifyNewTicket(ticket.id);
   } catch (err) {
     // Two deliveries of the same email raced past the duplicate check.
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
