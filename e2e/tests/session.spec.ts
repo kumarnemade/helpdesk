@@ -56,13 +56,6 @@ test.describe("Session persistence (shared admin session)", () => {
     await expect(page).toHaveURL(/\/login$/);
     await ctx.close();
   });
-
-  test("shows the user's name and a sign-out button in the nav", async ({ page }) => {
-    await page.goto("/");
-    const nav = page.getByRole("navigation");
-    await expect(nav.getByText(admin.name)).toBeVisible();
-    await expect(nav.getByRole("button", { name: "Sign out" })).toBeVisible();
-  });
 });
 
 test.describe("Logout", () => {

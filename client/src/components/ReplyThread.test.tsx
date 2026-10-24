@@ -1,8 +1,9 @@
 import axios from 'axios'
-import { screen, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test/render'
-import type { TicketReply } from '@/lib/tickets'
+import { ticketRepliesQueryKey, type TicketReply } from '@/lib/tickets'
 import { ReplyThread } from './ReplyThread'
 
 const replies: TicketReply[] = [
@@ -39,12 +40,46 @@ describe('ReplyThread', () => {
     expect(get).toHaveBeenCalledWith('/api/tickets/42/replies', { signal: expect.any(AbortSignal) })
   })
 
-  it('shows skeletons with an accessible loading label while pending', () => {
+  it('requests the replies of the ticket it is given', async () => {
+    const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { replies: [] } })
+    renderWithQueryClient(<ReplyThread ticketId={7} />)
+
+    await screen.findByText('No replies yet.')
+    expect(get).toHaveBeenCalledTimes(1)
+    expect(get).toHaveBeenCalledWith('/api/tickets/7/replies', { signal: expect.any(AbortSignal) })
+  })
+
+  it('shows only skeletons with an accessible loading label while pending', () => {
     vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
     const { container } = renderWithQueryClient(<ReplyThread ticketId={42} />)
 
     expect(screen.getByText('Loading replies…')).toBeInTheDocument()
     expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('list', { name: 'Replies' })).not.toBeInTheDocument()
+    expect(screen.queryByText('No replies yet.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  // ReplyForm invalidates this key after sending, so the new reply must appear.
+  it('refetches and shows a new reply when its query is invalidated', async () => {
+    const get = vi
+      .spyOn(axios, 'get')
+      .mockResolvedValueOnce({ data: { replies: [replies[0]] } })
+      .mockResolvedValueOnce({ data: { replies } })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ReplyThread ticketId={42} />
+      </QueryClientProvider>,
+    )
+    await screen.findByText(/Any update on my refund\?/)
+    expect(screen.queryByText('Sorry for the wait, the refund is on its way.')).not.toBeInTheDocument()
+
+    await queryClient.invalidateQueries({ queryKey: ticketRepliesQueryKey(42) })
+
+    expect(await screen.findByText('Sorry for the wait, the refund is on its way.')).toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Replies' })).getAllByRole('listitem')).toHaveLength(2)
+    expect(get).toHaveBeenCalledTimes(2)
   })
 
   it('shows customer and agent replies oldest first', async () => {

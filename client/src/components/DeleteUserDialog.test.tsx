@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosHeaders, type AxiosResponse } from 'axios'
-import { screen, waitFor, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { User } from '@/lib/users'
@@ -46,6 +47,7 @@ describe('DeleteUserDialog', () => {
 
     const { user, dialog } = await openConfirmation()
     expect(dialog).toHaveTextContent('Alan Agent (alan@example.com) will no longer be able to sign in')
+    expect(dialog).toHaveTextContent('Tickets assigned to them will be unassigned.')
 
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
@@ -69,6 +71,28 @@ describe('DeleteUserDialog', () => {
     expect(del).toHaveBeenCalledWith('/api/users/u2')
     await waitFor(() => expect(screen.queryByRole('cell', { name: 'Alan Agent' })).not.toBeInTheDocument())
     expect(get).toHaveBeenCalledTimes(2)
+  })
+
+  // Deleting a user unassigns their tickets on the server, so cached tickets and
+  // the assignee dropdown must be refetched too.
+  it('refreshes the users, tickets and assignees after deleting', async () => {
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { users: [admin, agent] } })
+    vi.spyOn(axios, 'delete').mockResolvedValue({ status: 204 })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    render(
+      <QueryClientProvider client={queryClient}>
+        <UsersPage />
+      </QueryClientProvider>,
+    )
+
+    const { user, dialog } = await openConfirmation()
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['users'] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['tickets'] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['ticket-assignees'] })
   })
 
   it.each([

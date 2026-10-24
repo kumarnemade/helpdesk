@@ -88,9 +88,12 @@ usersRouter.delete("/:id", async (req, res) => {
     return;
   }
 
+  // Deleted users can't be assigned tickets, so their tickets go back to
+  // Unassigned in the same transaction.
   await prisma.$transaction([
     prisma.user.update({ where: { id }, data: { deletedAt: new Date() } }),
     prisma.session.deleteMany({ where: { userId: id } }),
+    prisma.ticket.updateMany({ where: { assignedToId: id }, data: { assignedToId: null } }),
   ]);
   res.status(204).end();
 });

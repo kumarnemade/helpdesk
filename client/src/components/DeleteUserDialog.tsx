@@ -14,6 +14,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { assigneesQueryKey, ticketsQueryKey } from '@/lib/tickets'
 import { deleteUser, usersQueryKey, type User } from '@/lib/users'
 
 function errorMessage(error: unknown) {
@@ -32,8 +33,14 @@ export function DeleteUserDialog({ user }: { user: User }) {
 
   const mutation = useMutation({
     mutationFn: () => deleteUser(user.id),
+    // The server also unassigns the user's tickets, so refresh the tickets and
+    // the assignee dropdown along with the user list.
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: usersQueryKey })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: usersQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ticketsQueryKey }),
+        queryClient.invalidateQueries({ queryKey: assigneesQueryKey }),
+      ])
       setOpen(false)
     },
   })
@@ -67,7 +74,7 @@ export function DeleteUserDialog({ user }: { user: User }) {
         <AlertDialogHeader>
           <AlertDialogTitle>Delete user?</AlertDialogTitle>
           <AlertDialogDescription>
-            {user.name} ({user.email}) will no longer be able to sign in and will be removed from the user list.
+            {user.name} ({user.email}) will no longer be able to sign in and will be removed from the user list. Tickets assigned to them will be unassigned.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {mutation.isError && (

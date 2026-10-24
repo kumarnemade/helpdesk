@@ -182,3 +182,9 @@ export const createReplySchema = z.object({
 });
 
 export type CreateReplyInput = z.infer<typeof createReplySchema>;
+
+// Body of POST /api/tickets/:id/replies/polish: an agent's draft reply to be
+// rewritten by AI. Same rules as a reply, since the result is sent as one.
+export const polishReplySchema = createReplySchema;
+
+export type PolishReplyInput = z.infer<typeof polishReplySchema>;

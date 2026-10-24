@@ -2,6 +2,7 @@ import axios from 'axios'
 import type {
   CreateReplyInput,
   ListTicketsQuery,
+  PolishReplyInput,
   ReplySenderType,
   TicketCategory,
   TicketCategoryFilter,
@@ -92,6 +93,12 @@ export async function fetchTicketReplies(id: number, signal?: AbortSignal) {
 export async function createTicketReply(id: number, input: CreateReplyInput) {
   const { data } = await axios.post<{ reply: TicketReply }>(`/api/tickets/${id}/replies`, input)
   return data.reply
+}
+
+// AI-improved version of a draft reply; nothing is saved.
+export async function polishTicketReply(id: number, input: PolishReplyInput) {
+  const { data } = await axios.post<{ body: string }>(`/api/tickets/${id}/replies/polish`, input)
+  return data.body
 }
 
 // Active users a ticket can be assigned to (agents and admins).

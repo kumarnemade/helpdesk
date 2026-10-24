@@ -340,7 +340,7 @@ export function TicketsTable() {
                   {row.getAllCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className={cell.column.id === 'subject' ? 'max-w-xs truncate font-medium' : undefined}
+                      className={cell.column.id === 'subject' ? 'max-w-xs truncate font-[family-name:Arial,Helvetica,sans-serif] font-bold' : undefined}
                     >
                       <table.FlexRender cell={cell} />
                     </TableCell>

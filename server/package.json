@@ -18,8 +18,10 @@
     "postinstall": "bun --bun prisma generate"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.104",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
+    "ai": "^7.0.152",
     "better-auth": "^1.7.10",
     "core": "workspace:*",
     "express": "^5.3.0",

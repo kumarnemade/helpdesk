@@ -24,8 +24,19 @@ You are working on a Helpdesk AI-Powered Ticket Management System (Bun workspace
 ## Your Responsibilities
 
 1. Examine the codebase before writing tests. Read the relevant page components, routes, API endpoints, and Prisma schema to understand what needs testing.
-2. Write Playwright E2E tests that cover critical user flows, edge cases, and error states.
-3. Create test utilities and fixtures for common operations like authentication, data seeding, and page navigation.
+2. Read the client component tests for the same pages and components (`client/src/**/*.test.tsx`) and leave out everything they cover or could cover (see "What belongs in E2E").
+3. Write only the Playwright E2E tests that need the real server, a real session or a multi-page flow.
+4. Create test utilities and fixtures for common operations like authentication, data seeding, and page navigation.
+
+## What belongs in E2E
+
+E2E tests are slow and share one database, so keep the suite to what component tests (Vitest, API mocked) can't check. Write an E2E test only for:
+
+- the server's real response: auth (401/403), Zod 400s, query results such as sort order or filtering, fields hidden by `select`, data the server sets itself (e.g. the author of a reply)
+- a real session or redirect: sign-in, sign-out, protected and admin-only routes
+- a critical flow across several pages against the real server (e.g. open a ticket from the list, reply, reload, and the reply is still there)
+
+Never write an E2E test for anything a component test covers or could cover with the API mocked: static text, headings, column headers, which links or buttons a role sees, loading, error and empty states, form validation messages, dialogs opening, closing and resetting, or how the UI handles a server error. Never mock the API with `page.route()`; a test that needs a mocked API is a component test. If a behaviour has no component test yet, say so in your summary (the main session adds it) rather than covering it in E2E. One test per behaviour: don't repeat what another E2E test already checks (e.g. an API test plus a UI test of the same server result).
 
 ## E2E Testing Infrastructure
 
@@ -70,9 +81,8 @@ Without consent, verify what you can without servers: run `bun run --cwd e2e typ
 ### Assertions & Reliability
 - Use Playwright's built-in `expect` with web-first assertions (`toBeVisible()`, `toHaveText()`, `toHaveURL()`, etc.), which auto-retry.
 - Avoid `waitForTimeout()`. Use `waitForURL()`, `waitForResponse()`, locator assertions, or other auto-retrying assertions instead.
-- Test both success and error paths.
+- Test the server's error responses (401/403/400/404/409) through the API; leave how the UI shows them to component tests.
 - Assert on URL changes after navigation actions.
-- Verify toast messages, error states, and loading states where relevant.
 
 ### Test Isolation
 - Each test should be independent and not rely on state from other tests (the config runs `fullyParallel`).
@@ -81,7 +91,7 @@ Without consent, verify what you can without servers: run `bun run --cwd e2e typ
 
 ### API & Network
 - Use `page.waitForResponse()` to wait for API calls when testing data-dependent flows.
-- Consider using `page.route()` to mock API responses for edge case testing (e.g., server errors, slow responses).
+- Don't use `page.route()` to mock or delay responses; server errors and loading states belong in component tests.
 - Test that appropriate API calls are made with correct parameters when relevant.
 
 ## Test Coverage Priorities
@@ -89,8 +99,8 @@ Without consent, verify what you can without servers: run `bun run --cwd e2e typ
 2. Core CRUD operations: Creating, reading, updating tickets
 3. Role-based access: Admin vs agent permissions, protected routes, admin-only routes. Remember that client gating is UI-only; also check that admin API calls fail for agents.
 4. AI features: Ticket classification, auto-responses (mock AI responses for deterministic tests)
-5. Navigation & routing: All routes accessible, redirects work correctly
-6. Error handling: Invalid inputs, network errors, unauthorized access
+5. Navigation & routing: redirects and route access that depend on the real session
+6. Error handling: the server's responses to invalid input and unauthorized access
 7. Responsive behavior: If applicable, test critical flows at different viewport sizes
 
 Only test features that exist in the code. Don't write tests for planned pages or endpoints.
@@ -115,12 +125,6 @@ test.describe('Ticket Management', () => {
     await loginAsAgent(page);
   });
 
-  test('should display list of tickets', async ({ page }) => {
-    await page.goto('/tickets');
-    await expect(page.getByRole('heading', { name: /tickets/i })).toBeVisible();
-    // Assert ticket list is populated
-  });
-
   test('should create a new ticket', async ({ page }) => {
     await page.goto('/tickets/new');
     await page.getByLabel('Subject').fill('Test ticket');
@@ -140,7 +144,9 @@ Before finalizing tests, verify:
 - [ ] Tests use web-first assertions that auto-retry
 - [ ] Authentication is handled properly for each test
 - [ ] Tests are independent and can run in any order
-- [ ] Both happy path and error scenarios are covered
+- [ ] Nothing is covered (or coverable) by a client component test, and nothing repeats another E2E test
+- [ ] No `page.route()` mocking
+- [ ] The server's error responses are covered through the API
 - [ ] Selectors follow the priority order (role > label > text > testid)
 - [ ] Tests would actually catch regressions if the feature broke
 - [ ] `bun run typecheck` passes

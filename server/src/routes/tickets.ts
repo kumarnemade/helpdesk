@@ -1,12 +1,14 @@
 import {
   createReplySchema,
   listTicketsQuerySchema,
+  polishReplySchema,
   ticketIdParamsSchema,
   updateTicketSchema,
   type SortOrder,
   type TicketSortField,
 } from "core";
 import { Router } from "express";
+import { aiConfigured, polishReply } from "../ai";
 import { prisma } from "../db";
 import type { Prisma } from "../generated/prisma/client";
 
@@ -229,4 +231,47 @@ ticketsRouter.post("/:id/replies", async (req, res) => {
     select: replySelect,
   });
   res.status(201).json({ reply });
+});
+
+// Rewrite an agent's draft reply with AI, using the ticket's subject and
+// customer name as context, and sign it with the signed-in agent's name (from
+// the session, never the request). Nothing is saved; the agent reviews the result in
+// the reply form before sending it.
+ticketsRouter.post("/:id/replies/polish", async (req, res) => {
+  const params = ticketIdParamsSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? "Invalid request" });
+    return;
+  }
+  const body = polishReplySchema.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.issues[0]?.message ?? "Invalid request" });
+    return;
+  }
+  if (!aiConfigured) {
+    res.status(503).json({ error: "Reply polishing isn't configured" });
+    return;
+  }
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: params.data.id },
+    select: { subject: true, senderName: true },
+  });
+  if (!ticket) {
+    res.status(404).json({ error: "Ticket not found" });
+    return;
+  }
+
+  // Stop the model call if the agent navigates away or the request is cancelled.
+  const controller = new AbortController();
+  res.on("close", () => controller.abort());
+
+  const polished = await polishReply({
+    body: body.data.body,
+    subject: ticket.subject,
+    customerName: ticket.senderName,
+    agentName: res.locals.user.name,
+    signal: controller.signal,
+  });
+  res.json({ body: polished });
 });

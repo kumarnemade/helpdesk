@@ -53,7 +53,7 @@ export function ReplyThread({ ticketId }: { ticketId: number }) {
             </CardHeader>
             <CardContent>
               {/* Plain-text body; bodyHtml is untrusted and isn't sent to the client. */}
-              <p className="text-sm whitespace-pre-wrap break-words">{reply.body}</p>
+              <p className="text-sm font-[family-name:Arial,Helvetica,sans-serif] font-bold whitespace-pre-wrap break-words">{reply.body}</p>
             </CardContent>
           </Card>
         </li>

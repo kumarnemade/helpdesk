@@ -41,6 +41,7 @@
 - [ ] Implement AI summary endpoint (generate ticket summary)
 - [ ] Implement AI suggested reply endpoint
 - [ ] Build knowledge base structure and seed with initial content
+- [x] AI reply polishing — "Polish" button in the reply form (`POST /api/tickets/:id/replies/polish`, Google `gemini-3.5-flash-lite` via the Vercel AI SDK)
 - [ ] Integrate AI features into ticket detail page UI
 
 ## Phase 6: Email Integration

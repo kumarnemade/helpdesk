@@ -76,7 +76,7 @@ function TicketDetailView({ ticket }: { ticket: TicketDetail }) {
       <div className="min-w-0 space-y-6">
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground">Ticket #{ticket.id}</p>
-          <h1 className="text-2xl font-semibold break-words">{ticket.subject}</h1>
+          <h1 className="text-2xl font-[family-name:Arial,Helvetica,sans-serif] font-bold break-words">{ticket.subject}</h1>
           <p className="text-sm text-muted-foreground">Received {formatDateTime(ticket.createdAt)}</p>
         </div>
 
@@ -88,7 +88,7 @@ function TicketDetailView({ ticket }: { ticket: TicketDetail }) {
           </CardHeader>
           <CardContent>
             {/* Plain-text body; bodyHtml is untrusted and isn't sent to the client. */}
-            <p className="text-sm whitespace-pre-wrap break-words">{ticket.body}</p>
+            <p className="text-sm font-[family-name:Arial,Helvetica,sans-serif] font-bold whitespace-pre-wrap break-words">{ticket.body}</p>
           </CardContent>
         </Card>
 

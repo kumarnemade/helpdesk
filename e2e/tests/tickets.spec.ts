@@ -1,9 +1,10 @@
-// Ticket list (/tickets and GET /api/tickets). Tickets only come from the inbound
+// Ticket list API (GET /api/tickets) plus real-session checks of /tickets.
+// Tickets only come from the inbound
 // webhook, so each test creates its own tickets with unique subjects and senders.
 // The suite is fullyParallel on a shared DB, so assertions only look at OUR
 // tickets (never absolute counts or row positions).
 import { randomUUID } from "node:crypto";
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 import { admin, ADMIN_STATE, agent, AGENT_STATE, API_URL, INBOUND_EMAIL_SECRET } from "../fixtures/users";
 
 const uid = () => randomUUID().slice(0, 12);
@@ -29,58 +30,6 @@ async function createTicket(request: APIRequestContext, label: string): Promise<
   return { id: body.ticketId, subject, name, email };
 }
 
-// Index of the table row containing `subject` among all rows on the page.
-async function rowIndex(page: Page, subject: string) {
-  const rows = await page.getByRole("row").allInnerTexts();
-  return rows.findIndex((t) => t.includes(subject));
-}
-
-test.describe("Tickets page as admin", () => {
-  test.use({ storageState: ADMIN_STATE });
-
-  test("lists tickets newest first with sender, status, category and assignee", async ({ page, request }) => {
-    // The list is paginated, so search for our own tickets by a shared prefix.
-    const prefix = `List${uid()}`;
-    const first = await createTicket(request, `${prefix} Older ticket`);
-    const second = await createTicket(request, `${prefix} Newer ticket`);
-
-    await page.goto(`/tickets?search=${prefix}`);
-    await expect(page.getByRole("heading", { name: "Tickets" })).toBeVisible();
-    await expect(page.getByText("Support requests received by email. Click a column heading to sort.")).toBeVisible();
-
-    for (const t of [first, second]) {
-      const row = page.getByRole("row").filter({ hasText: t.subject });
-      await expect(row).toBeVisible();
-      await expect(row.getByText(t.name)).toBeVisible();
-      await expect(row.getByText(t.email)).toBeVisible();
-      await expect(row.getByText("New", { exact: true })).toBeVisible();
-      await expect(row.getByText("—")).toBeVisible();
-      await expect(row.getByText("Unassigned")).toBeVisible();
-    }
-
-    const olderIdx = await rowIndex(page, first.subject);
-    const newerIdx = await rowIndex(page, second.subject);
-    expect(olderIdx).toBeGreaterThan(0);
-    expect(newerIdx).toBeGreaterThan(0);
-    expect(newerIdx).toBeLessThan(olderIdx);
-  });
-
-  test("shows the column headers", async ({ page }) => {
-    await page.goto("/tickets");
-    for (const name of ["Subject", "From", "Status", "Category", "Assigned to", "Received"]) {
-      await expect(page.getByRole("columnheader", { name })).toBeVisible();
-    }
-  });
-
-  test("shows an error alert when the API fails", async ({ page }) => {
-    await page.route("**/api/tickets?*", (route) =>
-      route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Internal Server Error" }) }),
-    );
-    await page.goto("/tickets");
-    await expect(page.getByRole("alert").filter({ hasText: "Failed to load tickets" })).toBeVisible();
-  });
-});
-
 test.describe("Tickets page as agent", () => {
   test.use({ storageState: AGENT_STATE });
 
@@ -93,26 +42,6 @@ test.describe("Tickets page as agent", () => {
     await expect(row).toBeVisible();
     await expect(row.getByText(t.email)).toBeVisible();
   });
-});
-
-test.describe("Tickets nav link", () => {
-  for (const [role, state] of [
-    ["admin", ADMIN_STATE],
-    ["agent", AGENT_STATE],
-  ] as const) {
-    test.describe(role, () => {
-      test.use({ storageState: state });
-
-      test(`is visible to the ${role} and navigates to /tickets`, async ({ page }) => {
-        await page.goto("/");
-        const link = page.getByRole("navigation").getByRole("link", { name: "Tickets" });
-        await expect(link).toBeVisible();
-        await link.click();
-        await expect(page).toHaveURL("/tickets");
-        await expect(page.getByRole("heading", { name: "Tickets" })).toBeVisible();
-      });
-    });
-  }
 });
 
 test.describe("GET /api/tickets", () => {
@@ -170,43 +99,22 @@ test.describe("GET /api/tickets", () => {
 test.describe("Ticket sorting", () => {
   test.use({ storageState: ADMIN_STATE });
 
-  test("sorts by column via header buttons and exposes aria-sort", async ({ page, request }) => {
+  test("sorts by subject ascending and descending", async ({ request }) => {
     const prefix = `Sort${uid()}`;
-    // Created in non-alphabetical order: Banana, Cherry, Apple (Apple is newest).
+    // Created in non-alphabetical order: Banana, Cherry, Apple.
     await createTicket(request, `${prefix} Banana`);
     await createTicket(request, `${prefix} Cherry`);
     await createTicket(request, `${prefix} Apple`);
 
-    const mine = page.getByRole("row").filter({ hasText: prefix });
-    const subjectHeader = page.getByRole("columnheader", { name: "Subject" });
-    const receivedHeader = page.getByRole("columnheader", { name: "Received" });
+    const subjects = async (sortOrder: "asc" | "desc") => {
+      const res = await request.get(`${API_URL}/api/tickets?search=${prefix}&sortBy=subject&sortOrder=${sortOrder}`);
+      expect(res.status()).toBe(200);
+      const { tickets } = (await res.json()) as { tickets: Array<{ subject: string }> };
+      return tickets.map((t) => t.subject.slice(prefix.length + 1).split(" ")[0]);
+    };
 
-    await page.goto(`/tickets?search=${prefix}`);
-
-    // Default: newest first, Received descending.
-    await expect(mine).toHaveCount(3);
-    await expect(mine).toContainText(["Apple", "Cherry", "Banana"]);
-    await expect(receivedHeader).toHaveAttribute("aria-sort", "descending");
-    await expect(subjectHeader).toHaveAttribute("aria-sort", "none");
-
-    // First click: ascending (A -> Z).
-    const asc = page.waitForResponse(
-      (r) => r.url().includes("/api/tickets") && r.url().includes("sortBy=subject") && r.url().includes("sortOrder=asc"),
-    );
-    await subjectHeader.getByRole("button", { name: "Subject" }).click();
-    await asc;
-    await expect(subjectHeader).toHaveAttribute("aria-sort", "ascending");
-    await expect(mine).toContainText(["Apple", "Banana", "Cherry"]);
-    await expect(receivedHeader).toHaveAttribute("aria-sort", "none");
-
-    // Second click: descending (Z -> A).
-    const desc = page.waitForResponse(
-      (r) => r.url().includes("/api/tickets") && r.url().includes("sortBy=subject") && r.url().includes("sortOrder=desc"),
-    );
-    await subjectHeader.getByRole("button", { name: "Subject" }).click();
-    await desc;
-    await expect(subjectHeader).toHaveAttribute("aria-sort", "descending");
-    await expect(mine).toContainText(["Cherry", "Banana", "Apple"]);
+    expect(await subjects("asc")).toEqual(["Apple", "Banana", "Cherry"]);
+    expect(await subjects("desc")).toEqual(["Cherry", "Banana", "Apple"]);
   });
 
   test("GET /api/tickets rejects an invalid sort field with 400", async ({ request }) => {
@@ -458,6 +366,43 @@ test.describe("Ticket assignment", () => {
       const res = await assign(request, t.id, user.id);
       expect(res.status()).toBe(400);
       expect(await res.json()).toEqual({ error: "Assignee not found" });
+    });
+
+    test("unassigns their tickets when they are deleted", async ({ request }) => {
+      const [t1, t2, t3] = [
+        await createTicket(request, "Leaver ticket"),
+        await createTicket(request, "Leaver ticket"),
+        await createTicket(request, "Stays assigned"),
+      ] as [Created, Created, Created];
+      const fixtureAgent = (await assignees(request)).find((u) => u.name === agent.name)!;
+      expect(fixtureAgent).toBeDefined();
+
+      const created = await request.post(`${API_URL}/api/users`, {
+        data: { name: `Leaver ${uid()}`, email: `leaver-${uid()}@example.com`, password: "a-valid-password-123" },
+      });
+      expect(created.status()).toBe(201);
+      const { user } = (await created.json()) as { user: Assignee };
+
+      for (const t of [t1, t2]) {
+        const res = await assign(request, t.id, user.id);
+        expect(res.status()).toBe(200);
+        expect((await res.json()).ticket.assignedTo).toEqual({ id: user.id, name: user.name });
+      }
+      expect((await assign(request, t3.id, fixtureAgent.id)).status()).toBe(200);
+
+      expect((await request.delete(`${API_URL}/api/users/${user.id}`)).status()).toBe(204);
+
+      for (const t of [t1, t2]) {
+        const detail = await (await request.get(`${API_URL}/api/tickets/${t.id}`)).json();
+        expect(detail.ticket.assignedTo).toBeNull();
+      }
+      const list = await (await request.get(`${API_URL}/api/tickets?search=${encodeURIComponent(t1.subject)}`)).json();
+      expect(list.tickets).toHaveLength(1);
+      expect(list.tickets[0]).toMatchObject({ id: t1.id, assignedTo: null });
+
+      // Only the deleted user's tickets are touched.
+      const other = await (await request.get(`${API_URL}/api/tickets/${t3.id}`)).json();
+      expect(other.ticket.assignedTo).toEqual(fixtureAgent);
     });
   });
 

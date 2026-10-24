@@ -47,15 +47,21 @@ function renderPage(path = '/tickets/42') {
   )
 }
 
-function notFoundError() {
-  return new AxiosError('Request failed with status code 404', 'ERR_BAD_REQUEST', undefined, undefined, {
-    status: 404,
-    statusText: 'Not Found',
-    data: { error: 'Ticket not found' },
+function axiosError(status: number, statusText: string, error: string) {
+  return new AxiosError(`Request failed with status code ${status}`, 'ERR_BAD_REQUEST', undefined, undefined, {
+    status,
+    statusText,
+    data: { error },
     headers: {},
     config: { headers: new AxiosHeaders() },
   })
 }
+
+function notFoundError() {
+  return axiosError(404, 'Not Found', 'Ticket not found')
+}
+
+const isRepliesRequest = ([url]: unknown[]) => typeof url === 'string' && url.endsWith('/replies')
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -139,6 +145,39 @@ describe('TicketDetailPage', () => {
     expect(within(screen.getByRole('complementary', { name: 'Ticket properties' })).queryByLabelText('Reply')).not.toBeInTheDocument()
   })
 
+  it("requests the replies of the URL's ticket with an abort signal", async () => {
+    const get = mockGet()
+    renderPage()
+
+    await screen.findByText('Any update on my refund?')
+    expect(get).toHaveBeenCalledWith('/api/tickets/42/replies', { signal: expect.any(AbortSignal) })
+  })
+
+  it("doesn't show or request the replies while the ticket is loading", () => {
+    const get = vi.spyOn(axios, 'get').mockReturnValue(new Promise(() => {}))
+    renderPage()
+
+    expect(screen.getByText('Loading ticket…')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Replies' })).not.toBeInTheDocument()
+    expect(get.mock.calls.filter(isRepliesRequest)).toHaveLength(0)
+  })
+
+  it('keeps the ticket on screen when only the replies fail to load', async () => {
+    vi.spyOn(axios, 'get').mockImplementation(async (url: string) => {
+      if (url.endsWith('/replies')) throw new Error('Request failed with status code 500')
+      return { data: { ticket } }
+    })
+    renderPage()
+
+    const section = await screen.findByRole('region', { name: 'Replies' })
+    expect(await within(section).findByRole('alert')).toHaveTextContent('Failed to load replies. Please try again.')
+    expect(screen.getByRole('heading', { level: 1, name: ticket.subject })).toBeInTheDocument()
+    expect(screen.getByText(/My card was charged \$199 twice\./)).toBeInTheDocument()
+    // Agents can still reply even if the thread didn't load.
+    expect(within(section).getByRole('button', { name: 'Send reply' })).toBeInTheDocument()
+    expect(screen.queryByText('Failed to load the ticket. Please try again.')).not.toBeInTheDocument()
+  })
+
   it('shows "Ticket not found" when the server returns 404', async () => {
     vi.spyOn(axios, 'get').mockRejectedValue(notFoundError())
     renderPage('/tickets/999')
@@ -147,9 +186,28 @@ describe('TicketDetailPage', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it("doesn't show or request the replies when the ticket isn't found", async () => {
+    const get = vi.spyOn(axios, 'get').mockRejectedValue(notFoundError())
+    renderPage('/tickets/999')
+
+    await screen.findByRole('heading', { name: 'Ticket not found' })
+    expect(screen.queryByRole('region', { name: 'Replies' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Reply')).not.toBeInTheDocument()
+    expect(get.mock.calls.filter(isRepliesRequest)).toHaveLength(0)
+  })
+
   it('shows "Ticket not found" for a non-numeric id without calling the API', () => {
     const get = vi.spyOn(axios, 'get')
     renderPage('/tickets/abc')
+
+    expect(screen.getByRole('heading', { name: 'Ticket not found' })).toBeInTheDocument()
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  // 2147483648 is one past the largest Postgres INTEGER, so no ticket can have it.
+  it.each(['0', '-3', '2147483648'])('shows "Ticket not found" for id %s without calling the API', (id) => {
+    const get = vi.spyOn(axios, 'get')
+    renderPage(`/tickets/${id}`)
 
     expect(screen.getByRole('heading', { name: 'Ticket not found' })).toBeInTheDocument()
     expect(get).not.toHaveBeenCalled()
@@ -161,6 +219,14 @@ describe('TicketDetailPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load the ticket. Please try again.')
     expect(screen.queryByText('Loading ticket…')).not.toBeInTheDocument()
+  })
+
+  it('shows the error alert, not "Ticket not found", for errors other than 404', async () => {
+    vi.spyOn(axios, 'get').mockRejectedValue(axiosError(400, 'Bad Request', 'Invalid ticket id'))
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load the ticket. Please try again.')
+    expect(screen.queryByRole('heading', { name: 'Ticket not found' })).not.toBeInTheDocument()
   })
 
   // Where it leads is covered in BackToTickets.test.tsx.
