@@ -38,7 +38,7 @@
 
 - [ ] Set up Claude API integration
 - [ ] Implement auto-classification endpoint (categorize incoming tickets)
-- [ ] Implement AI summary endpoint (generate ticket summary)
+- [x] Implement AI summary endpoint (generate ticket summary) — `POST /api/tickets/:id/summary` (Gemini via the Vercel AI SDK) with a "Summarize" button below the opening email; regenerated on every click, never saved
 - [ ] Implement AI suggested reply endpoint
 - [ ] Build knowledge base structure and seed with initial content
 - [x] AI reply polishing — "Polish" button in the reply form (`POST /api/tickets/:id/replies/polish`, Google `gemini-3.5-flash-lite` via the Vercel AI SDK)

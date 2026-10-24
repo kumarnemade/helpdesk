@@ -101,6 +101,13 @@ export async function polishTicketReply(id: number, input: PolishReplyInput) {
   return data.body
 }
 
+// AI summary of the ticket and its replies, generated fresh on every call;
+// nothing is saved.
+export async function summarizeTicket(id: number) {
+  const { data } = await axios.post<{ summary: string }>(`/api/tickets/${id}/summary`)
+  return data.summary
+}
+
 // Active users a ticket can be assigned to (agents and admins).
 export type Assignee = { id: string; name: string }
 

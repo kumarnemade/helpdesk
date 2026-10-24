@@ -9,6 +9,7 @@ import { CategorySelect } from '@/components/CategorySelect'
 import { ReplyForm } from '@/components/ReplyForm'
 import { ReplyThread } from '@/components/ReplyThread'
 import { StatusSelect } from '@/components/StatusSelect'
+import { TicketSummary } from '@/components/TicketSummary'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchTicket, ticketQueryKey, type TicketDetail } from '@/lib/tickets'
@@ -91,6 +92,8 @@ function TicketDetailView({ ticket }: { ticket: TicketDetail }) {
             <p className="text-sm font-[family-name:Arial,Helvetica,sans-serif] font-bold whitespace-pre-wrap break-words">{ticket.body}</p>
           </CardContent>
         </Card>
+
+        <TicketSummary ticketId={ticket.id} />
 
         <section aria-labelledby="replies-heading" className="space-y-4">
           <h2 id="replies-heading" className="text-lg font-semibold">

@@ -8,7 +8,7 @@ import {
   type TicketSortField,
 } from "core";
 import { Router } from "express";
-import { aiConfigured, polishReply } from "../ai";
+import { aiConfigured, polishReply, summarizeTicket } from "../ai";
 import { prisma } from "../db";
 import type { Prisma } from "../generated/prisma/client";
 
@@ -274,4 +274,51 @@ ticketsRouter.post("/:id/replies/polish", async (req, res) => {
     signal: controller.signal,
   });
   res.json({ body: polished });
+});
+
+// Summarise a ticket and its conversation with AI. Generated fresh on every
+// call and never saved, so it always reflects the latest replies. Uses only the
+// plain-text bodies (bodyHtml is untrusted sender HTML).
+ticketsRouter.post("/:id/summary", async (req, res) => {
+  const params = ticketIdParamsSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? "Invalid request" });
+    return;
+  }
+  if (!aiConfigured) {
+    res.status(503).json({ error: "Ticket summaries aren't configured" });
+    return;
+  }
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: params.data.id },
+    select: {
+      subject: true,
+      status: true,
+      senderName: true,
+      body: true,
+      replies: {
+        select: { senderType: true, senderName: true, body: true },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      },
+    },
+  });
+  if (!ticket) {
+    res.status(404).json({ error: "Ticket not found" });
+    return;
+  }
+
+  // Stop the model call if the agent navigates away or the request is cancelled.
+  const controller = new AbortController();
+  res.on("close", () => controller.abort());
+
+  const summary = await summarizeTicket({
+    subject: ticket.subject,
+    status: ticket.status,
+    customerName: ticket.senderName,
+    body: ticket.body,
+    replies: ticket.replies,
+    signal: controller.signal,
+  });
+  res.json({ summary });
 });

@@ -145,6 +145,19 @@ describe('TicketDetailPage', () => {
     expect(within(screen.getByRole('complementary', { name: 'Ticket properties' })).queryByLabelText('Reply')).not.toBeInTheDocument()
   })
 
+  it('shows the Summarize button between the opening email and the replies', async () => {
+    mockGet()
+    renderPage()
+
+    const summarize = within(await screen.findByRole('region', { name: 'Ticket summary' })).getByRole('button', {
+      name: 'Summarize',
+    })
+    const email = screen.getByText(/My card was charged \$199 twice\./)
+    const replies = screen.getByRole('region', { name: 'Replies' })
+    expect(email.compareDocumentPosition(summarize) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(summarize.compareDocumentPosition(replies) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it("requests the replies of the URL's ticket with an abort signal", async () => {
     const get = mockGet()
     renderPage()
