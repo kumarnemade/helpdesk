@@ -88,8 +88,12 @@ model Verification {
 
 // Tickets
 
+// new → processing (AI auto-resolution) → resolved (answered from the
+// knowledge base) or open (needs an agent). Processing tickets are hidden from
+// the ticket list.
 enum TicketStatus {
   new
+  processing
   open
   resolved
   closed
@@ -104,6 +108,7 @@ enum TicketCategory {
 enum ReplySender {
   customer
   agent
+  ai
 }
 
 model Ticket {
@@ -140,7 +145,7 @@ model Reply {
   senderType     ReplySender
   senderName     String
   senderEmail    String
-  // The agent who wrote an agent reply; null for customer replies.
+  // The agent who wrote an agent reply; null for customer and AI replies.
   authorId       String?
   author         User?       @relation(fields: [authorId], references: [id])
   // Message-ID of the email this reply came from (or was sent as).

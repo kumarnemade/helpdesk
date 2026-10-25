@@ -120,6 +120,7 @@ export async function fetchAssignees(signal?: AbortSignal) {
 
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   new: 'New',
+  processing: 'Processing',
   open: 'Open',
   resolved: 'Resolved',
   closed: 'Closed',
@@ -128,10 +129,23 @@ export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
 // Badge variant per status, shared by the list and the detail page.
 export const TICKET_STATUS_BADGE_VARIANTS = {
   new: 'default',
+  processing: 'secondary',
   open: 'secondary',
   resolved: 'outline',
   closed: 'outline',
 } as const satisfies Record<TicketStatus, string>
+
+export const REPLY_SENDER_LABELS: Record<ReplySenderType, string> = {
+  customer: 'Customer',
+  agent: 'Agent',
+  ai: 'AI',
+}
+
+export const REPLY_SENDER_BADGE_VARIANTS = {
+  customer: 'outline',
+  agent: 'secondary',
+  ai: 'default',
+} as const satisfies Record<ReplySenderType, string>
 
 export const TICKET_CATEGORY_LABELS: Record<TicketCategory, string> = {
   general_question: 'General Question',

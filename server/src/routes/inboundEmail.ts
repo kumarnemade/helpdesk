@@ -4,7 +4,13 @@ import { fromPrisma } from "pg-boss";
 import { aiConfigured } from "../ai";
 import { prisma } from "../db";
 import { Prisma } from "../generated/prisma/client";
-import { boss, CLASSIFY_TICKET_QUEUE, type ClassifyTicketJob } from "../queue";
+import {
+  AUTO_RESOLVE_TICKET_QUEUE,
+  boss,
+  CLASSIFY_TICKET_QUEUE,
+  type AutoResolveTicketJob,
+  type ClassifyTicketJob,
+} from "../queue";
 
 export const inboundEmailRouter = Router();
 
@@ -82,9 +88,10 @@ inboundEmailRouter.post("/", async (req, res) => {
       return;
     }
 
-    // The classification job is queued in the same transaction, so it exists
-    // exactly when the ticket does. A pg-boss worker sets the category later;
-    // the provider gets its response right away.
+    // The classification and auto-resolve jobs are queued in the same
+    // transaction, so they exist exactly when the ticket does. pg-boss workers
+    // set the category and try to resolve the ticket from the knowledge base
+    // later; the provider gets its response right away.
     const ticket = await prisma.$transaction(async (tx) => {
       const created = await tx.ticket.create({
         data: {
@@ -98,8 +105,10 @@ inboundEmailRouter.post("/", async (req, res) => {
         select: { id: true },
       });
       if (aiConfigured) {
-        const job: ClassifyTicketJob = { ticketId: created.id };
-        await boss.send(CLASSIFY_TICKET_QUEUE, job, { db: fromPrisma(tx) });
+        const classifyJob: ClassifyTicketJob = { ticketId: created.id };
+        const autoResolveJob: AutoResolveTicketJob = { ticketId: created.id };
+        await boss.send(CLASSIFY_TICKET_QUEUE, classifyJob, { db: fromPrisma(tx) });
+        await boss.send(AUTO_RESOLVE_TICKET_QUEUE, autoResolveJob, { db: fromPrisma(tx) });
       }
       return created;
     });

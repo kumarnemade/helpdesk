@@ -1,10 +1,10 @@
 import { useEffect, useEffectEvent, useState } from 'react'
 import {
   MAX_TICKET_SEARCH_LENGTH,
+  AGENT_TICKET_STATUSES,
   TICKET_CATEGORY_FILTERS,
-  TICKET_STATUSES,
+  type AgentTicketStatus,
   type TicketCategoryFilter,
-  type TicketStatus,
 } from 'core'
 import { Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -21,10 +21,10 @@ export const SEARCH_DEBOUNCE_MS = 300
 
 type Props = {
   search: string
-  status: TicketStatus | undefined
+  status: AgentTicketStatus | undefined
   category: TicketCategoryFilter | undefined
   onSearchChange: (search: string) => void
-  onStatusChange: (status: TicketStatus | undefined) => void
+  onStatusChange: (status: AgentTicketStatus | undefined) => void
   onCategoryChange: (category: TicketCategoryFilter | undefined) => void
   onClear: () => void
 }
@@ -77,14 +77,15 @@ export function TicketFilters({
         <Label htmlFor="ticket-status-filter">Status</Label>
         <Select
           value={status ?? ALL}
-          onValueChange={(value) => onStatusChange(value === ALL ? undefined : (value as TicketStatus))}
+          onValueChange={(value) => onStatusChange(value === ALL ? undefined : (value as AgentTicketStatus))}
         >
           <SelectTrigger id="ticket-status-filter" className="w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All statuses</SelectItem>
-            {TICKET_STATUSES.map((value) => (
+            {/* Processing tickets are never listed, so there's nothing to filter. */}
+            {AGENT_TICKET_STATUSES.map((value) => (
               <SelectItem key={value} value={value}>
                 {TICKET_STATUS_LABELS[value]}
               </SelectItem>

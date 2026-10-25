@@ -2,10 +2,15 @@ import { useQuery } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { fetchTicketReplies, ticketRepliesQueryKey } from '@/lib/tickets'
+import {
+  fetchTicketReplies,
+  REPLY_SENDER_BADGE_VARIANTS,
+  REPLY_SENDER_LABELS,
+  ticketRepliesQueryKey,
+} from '@/lib/tickets'
 
-// The ticket's replies below the opening email, oldest first: customer emails
-// and agent replies, each as plain text.
+// The ticket's replies below the opening email, oldest first: customer emails,
+// agent replies and AI auto-resolution replies, each as plain text.
 export function ReplyThread({ ticketId }: { ticketId: number }) {
   const { data: replies, isPending, isError } = useQuery({
     queryKey: ticketRepliesQueryKey(ticketId),
@@ -45,8 +50,8 @@ export function ReplyThread({ ticketId }: { ticketId: number }) {
                   {reply.senderName}{' '}
                   <span className="font-normal text-muted-foreground">&lt;{reply.senderEmail}&gt;</span>
                 </span>
-                <Badge variant={reply.senderType === 'agent' ? 'secondary' : 'outline'}>
-                  {reply.senderType === 'agent' ? 'Agent' : 'Customer'}
+                <Badge variant={REPLY_SENDER_BADGE_VARIANTS[reply.senderType]}>
+                  {REPLY_SENDER_LABELS[reply.senderType]}
                 </Badge>
               </CardTitle>
               <p className="text-sm text-muted-foreground">{new Date(reply.createdAt).toLocaleString()}</p>

@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 // Mirror the TicketStatus / TicketCategory enums in server/prisma/schema.prisma.
-export const TICKET_STATUSES = ["new", "open", "resolved", "closed"] as const;
+// A new ticket moves to "processing" while AI tries to resolve it from the
+// knowledge base, then to "resolved" (answered) or "open" (needs an agent).
+export const TICKET_STATUSES = ["new", "processing", "open", "resolved", "closed"] as const;
 export const TICKET_CATEGORIES = [
   "general_question",
   "technical_question",
@@ -9,6 +11,12 @@ export const TICKET_CATEGORIES = [
 ] as const;
 
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
+
+// Statuses agents can filter by and set. "processing" is only set by the AI
+// job, and processing tickets are hidden from the ticket list.
+export const AGENT_TICKET_STATUSES = ["new", "open", "resolved", "closed"] as const satisfies readonly TicketStatus[];
+
+export type AgentTicketStatus = (typeof AGENT_TICKET_STATUSES)[number];
 export type TicketCategory = (typeof TICKET_CATEGORIES)[number];
 
 // RFC 5322 line length limit.
@@ -100,7 +108,7 @@ export const ticketFiltersSchema = z.object({
     .max(MAX_TICKET_SEARCH_LENGTH, `Search must be at most ${MAX_TICKET_SEARCH_LENGTH} characters`)
     .transform((search) => search || undefined)
     .optional(),
-  status: z.enum(TICKET_STATUSES, { error: "Invalid status filter" }).optional(),
+  status: z.enum(AGENT_TICKET_STATUSES, { error: "Invalid status filter" }).optional(),
   category: z.enum(TICKET_CATEGORY_FILTERS, { error: "Invalid category filter" }).optional(),
 });
 
@@ -147,7 +155,8 @@ export type TicketIdParams = z.infer<typeof ticketIdParamsSchema>;
 // change (at least one is required).
 // - `assignedToId`: a user id, or null to unassign; the server checks the user
 //   exists and isn't deleted.
-// - `status`: any status; there are no workflow rules between them.
+// - `status`: any status except "processing"; there are no workflow rules
+//   between them.
 // - `category`: a category, or null to make the ticket uncategorised again.
 export const updateTicketSchema = z
   .object({
@@ -157,7 +166,7 @@ export const updateTicketSchema = z
       .min(1, "Choose an assignee or Unassigned")
       .nullable()
       .optional(),
-    status: z.enum(TICKET_STATUSES, { error: "Invalid status" }).optional(),
+    status: z.enum(AGENT_TICKET_STATUSES, { error: "Invalid status" }).optional(),
     category: z.enum(TICKET_CATEGORIES, { error: "Invalid category" }).nullable().optional(),
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
@@ -167,7 +176,8 @@ export const updateTicketSchema = z
 export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;
 
 // Mirror the ReplySender enum in server/prisma/schema.prisma.
-export const REPLY_SENDER_TYPES = ["customer", "agent"] as const;
+// "ai" replies are written by AI auto-resolution, without an author.
+export const REPLY_SENDER_TYPES = ["customer", "agent", "ai"] as const;
 
 export type ReplySenderType = (typeof REPLY_SENDER_TYPES)[number];
 

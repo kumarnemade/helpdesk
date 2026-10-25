@@ -27,6 +27,16 @@ const replies: TicketReply[] = [
   },
 ]
 
+const aiReply: TicketReply = {
+  id: 3,
+  body: 'Hi Priya,\nYou can reset your password from the login page.',
+  senderType: 'ai',
+  senderName: 'Helpdesk AI',
+  senderEmail: 'support@helpdesk.local',
+  createdAt: '2026-10-21T09:31:00.000Z',
+  author: null,
+}
+
 afterEach(() => {
   vi.restoreAllMocks()
 })
@@ -99,6 +109,16 @@ describe('ReplyThread', () => {
     expect(agent).toHaveTextContent('Alan Agent <alan@example.com>')
     expect(within(agent).getByText('Agent')).toHaveAttribute('data-variant', 'secondary')
     expect(within(agent).getByText('Sorry for the wait, the refund is on its way.')).toBeInTheDocument()
+  })
+
+  it('labels replies written by AI auto-resolution', async () => {
+    vi.spyOn(axios, 'get').mockResolvedValue({ data: { replies: [aiReply] } })
+    renderWithQueryClient(<ReplyThread ticketId={42} />)
+
+    const [item] = within(await screen.findByRole('list', { name: 'Replies' })).getAllByRole('listitem') as [HTMLElement]
+    expect(item).toHaveTextContent('Helpdesk AI <support@helpdesk.local>')
+    expect(within(item).getByText('AI')).toHaveAttribute('data-variant', 'default')
+    expect(within(item).getByText(/You can reset your password from the login page\./)).toBeInTheDocument()
   })
 
   it('shows an empty message when there are no replies', async () => {

@@ -7,7 +7,7 @@
 // a fixed emailMessageId and rows are inserted with skipDuplicates, so the
 // script is safe to re-run: existing seed tickets (and any other tickets) are
 // left untouched.
-import type { TicketCategory, TicketStatus } from "core";
+import type { AgentTicketStatus, TicketCategory } from "core";
 import { prisma } from "../src/db";
 import type { Prisma } from "../src/generated/prisma/client";
 
@@ -176,12 +176,12 @@ if (TICKETS.length !== 100 || FIRST_NAMES.length !== 100) {
 const random = createRandom(20261023);
 
 // Roughly 30% new, 30% open, 25% resolved, 15% closed.
-const statuses = shuffle<TicketStatus>(
+const statuses = shuffle<AgentTicketStatus>(
   [
-    ...Array<TicketStatus>(30).fill("new"),
-    ...Array<TicketStatus>(30).fill("open"),
-    ...Array<TicketStatus>(25).fill("resolved"),
-    ...Array<TicketStatus>(15).fill("closed"),
+    ...Array<AgentTicketStatus>(30).fill("new"),
+    ...Array<AgentTicketStatus>(30).fill("open"),
+    ...Array<AgentTicketStatus>(25).fill("resolved"),
+    ...Array<AgentTicketStatus>(15).fill("closed"),
   ],
   random,
 );

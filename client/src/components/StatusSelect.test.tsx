@@ -2,6 +2,7 @@ import axios, { AxiosError, AxiosHeaders } from 'axios'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { TicketStatus } from 'core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ticketQueryKey, type TicketDetail } from '@/lib/tickets'
 import { StatusSelect } from './StatusSelect'
@@ -20,12 +21,12 @@ const ticket: TicketDetail = {
 }
 
 // Own QueryClient so tests can inspect the cache and invalidations.
-function renderSelect() {
+function renderSelect(status: TicketStatus = ticket.status) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
   render(
     <QueryClientProvider client={queryClient}>
-      <StatusSelect ticketId={42} status={ticket.status} />
+      <StatusSelect ticketId={42} status={status} />
     </QueryClientProvider>,
   )
   return { queryClient, invalidate }
@@ -52,6 +53,25 @@ describe('StatusSelect', () => {
     await user.click(trigger)
     await screen.findByRole('option', { name: 'Closed' })
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'New',
+      'Open',
+      'Resolved',
+      'Closed',
+    ])
+  })
+
+  it('shows Processing while AI is resolving the ticket, without letting agents choose it', async () => {
+    const user = userEvent.setup()
+    renderSelect('processing')
+
+    const trigger = screen.getByRole('combobox', { name: 'Status' })
+    expect(trigger).toHaveTextContent('Processing')
+
+    await user.click(trigger)
+    const processing = await screen.findByRole('option', { name: 'Processing' })
+    expect(processing).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Processing',
       'New',
       'Open',
       'Resolved',

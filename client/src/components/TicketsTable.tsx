@@ -22,7 +22,7 @@ import {
   type TicketCategoryFilter,
   type TicketFilters as TicketFiltersValue,
   type TicketSortField,
-  type TicketStatus,
+  type AgentTicketStatus,
 } from 'core'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { TicketFilters } from '@/components/TicketFilters'
@@ -268,7 +268,7 @@ export function TicketsTable() {
     <div className="space-y-4">
       <TicketFilters
         search={globalFilter}
-        status={statusColumn?.getFilterValue() as TicketStatus | undefined}
+        status={statusColumn?.getFilterValue() as AgentTicketStatus | undefined}
         category={categoryColumn?.getFilterValue() as TicketCategoryFilter | undefined}
         onSearchChange={(value) => table.setGlobalFilter(value)}
         onStatusChange={(value) => statusColumn?.setFilterValue(value)}

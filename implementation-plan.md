@@ -40,7 +40,8 @@
 - [x] Implement auto-classification (categorize incoming tickets) — new tickets from the inbound-email webhook are classified by a pg-boss background job (queued in the ticket's transaction, retried on failure, survives restarts) with Gemini (`Output.choice` over the ticket categories); never overwrites a category set by an agent
 - [x] Implement AI summary endpoint (generate ticket summary) — `POST /api/tickets/:id/summary` (Gemini via the Vercel AI SDK) with a "Summarize" button below the opening email; regenerated on every click, never saved
 - [ ] Implement AI suggested reply endpoint
-- [ ] Build knowledge base structure and seed with initial content
+- [x] Build knowledge base structure and seed with initial content — `server/knowledge-base.md`
+- [x] AI auto-resolution — new tickets go `new` → `processing` (hidden from the ticket list) → `resolved` with an AI reply when the knowledge base answers them, else `open` for an agent (pg-boss job with retries and a dead-letter queue)
 - [x] AI reply polishing — "Polish" button in the reply form (`POST /api/tickets/:id/replies/polish`, Google `gemini-3.5-flash-lite` via the Vercel AI SDK)
 - [ ] Integrate AI features into ticket detail page UI
 

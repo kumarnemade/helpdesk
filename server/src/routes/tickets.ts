@@ -28,7 +28,8 @@ const ticketListSelect = {
 } as const;
 
 // status and category are Postgres enums, so they sort in declaration order
-// (new → open → resolved → closed), not alphabetically. Tickets without a
+// (new → open → resolved → closed; processing tickets aren't listed), not
+// alphabetically. Tickets without a
 // category or assignee use Postgres's default: last ascending, first
 // descending (Prisma can't set `nulls` on a relation field).
 function ticketOrderBy(sortBy: TicketSortField, sortOrder: SortOrder): Prisma.TicketOrderByWithRelationInput {
@@ -59,9 +60,10 @@ ticketsRouter.get("/", async (req, res) => {
   const { search, status, category, sortBy, sortOrder, page, pageSize } = parsed.data;
 
   // Unset filters are undefined, which Prisma ignores; "none" matches tickets
-  // that have no category yet.
+  // that have no category yet. Tickets AI is still trying to resolve
+  // ("processing") are never listed; the status filter can't ask for them.
   const where: Prisma.TicketWhereInput = {
-    status,
+    status: status ?? { not: "processing" },
     category: category === "none" ? null : category,
     OR: search ? searchFields(search) : undefined,
   };

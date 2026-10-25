@@ -1,4 +1,4 @@
-import { TICKET_STATUSES, type TicketStatus } from 'core'
+import { AGENT_TICKET_STATUSES, type AgentTicketStatus, type TicketStatus } from 'core'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { updateTicketErrorMessage, useUpdateTicket } from '@/hooks/useUpdateTicket'
 import { TICKET_STATUS_LABELS } from '@/lib/tickets'
@@ -18,14 +18,21 @@ export function StatusSelect({ ticketId, status }: Props) {
     <div className="space-y-1.5">
       <Select
         value={current}
-        onValueChange={(value) => mutation.mutate({ status: value as TicketStatus })}
+        onValueChange={(value) => mutation.mutate({ status: value as AgentTicketStatus })}
         disabled={mutation.isPending}
       >
         <SelectTrigger aria-label="Status" className="w-full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {TICKET_STATUSES.map((value) => (
+          {/* "Processing" is set only by AI auto-resolution: shown while the
+              ticket is in it, but agents can't choose it. */}
+          {current === 'processing' && (
+            <SelectItem value="processing" disabled>
+              {TICKET_STATUS_LABELS.processing}
+            </SelectItem>
+          )}
+          {AGENT_TICKET_STATUSES.map((value) => (
             <SelectItem key={value} value={value}>
               {TICKET_STATUS_LABELS[value]}
             </SelectItem>
