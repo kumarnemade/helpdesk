@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { AdminRoute } from './components/AdminRoute'
 import { ProtectedLayout } from './components/ProtectedLayout'
-import { HomePage } from './pages/HomePage'
+import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { TicketDetailPage } from './pages/TicketDetailPage'
 import { TicketsPage } from './pages/TicketsPage'
@@ -12,7 +12,7 @@ function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedLayout />}>
-        <Route index element={<HomePage />} />
+        <Route index element={<DashboardPage />} />
         <Route path="/tickets" element={<TicketsPage />} />
         <Route path="/tickets/:id" element={<TicketDetailPage />} />
         <Route element={<AdminRoute />}>

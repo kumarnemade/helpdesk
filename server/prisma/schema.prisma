@@ -126,6 +126,9 @@ model Ticket {
   // RFC 5322 Message-ID of the email that opened the ticket (without angle
   // brackets): threads replies onto it and makes webhook retries idempotent.
   emailMessageId String?         @unique
+  // When the ticket was last resolved or closed (by AI or an agent); cleared
+  // when it goes back to new/open. Used for the average resolution time.
+  resolvedAt     DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   replies        Reply[]

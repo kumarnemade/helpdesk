@@ -13,6 +13,7 @@
     "db:studio": "bun --bun prisma studio",
     "db:seed": "bun --bun prisma db seed",
     "db:seed:tickets": "bun --bun prisma/seed-tickets.ts",
+    "db:seed:ai-agent": "bun --bun prisma/seed-ai-agent.ts",
     "db:test:reset": "NODE_ENV=test bun prisma/reset-test-db.ts",
     "test:server": "bun run db:test:reset && NODE_ENV=test bun run src/index.ts",
     "postinstall": "bun --bun prisma generate"

@@ -1,4 +1,5 @@
 import { aiConfigured } from "./ai";
+import { findAiAgentId } from "./aiAgent";
 import { app } from "./app";
 import { autoResolveTicketFailedJob, autoResolveTicketJob } from "./autoResolveTicket";
 import { classifyTicketJob } from "./classifyTicket";
@@ -27,6 +28,9 @@ if (aiConfigured) {
   await boss.work(AUTO_RESOLVE_TICKET_FAILED_QUEUE, async ([job]) => {
     if (job) await autoResolveTicketFailedJob(job.data);
   });
+  if (!(await findAiAgentId())) {
+    console.warn("No AI agent user: new tickets won't be assigned during auto-resolution (run `bun run db:seed:ai-agent`).");
+  }
 } else {
   // Nothing will finish auto-resolving these (e.g. the key was removed), so
   // hand them to agents rather than leave them hidden from the ticket list.

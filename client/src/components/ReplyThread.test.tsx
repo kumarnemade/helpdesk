@@ -31,8 +31,8 @@ const aiReply: TicketReply = {
   id: 3,
   body: 'Hi Priya,\nYou can reset your password from the login page.',
   senderType: 'ai',
-  senderName: 'Helpdesk AI',
-  senderEmail: 'support@helpdesk.local',
+  senderName: 'AI',
+  senderEmail: 'ai@helpdesk.local',
   createdAt: '2026-10-21T09:31:00.000Z',
   author: null,
 }
@@ -116,8 +116,11 @@ describe('ReplyThread', () => {
     renderWithQueryClient(<ReplyThread ticketId={42} />)
 
     const [item] = within(await screen.findByRole('list', { name: 'Replies' })).getAllByRole('listitem') as [HTMLElement]
-    expect(item).toHaveTextContent('Helpdesk AI <support@helpdesk.local>')
-    expect(within(item).getByText('AI')).toHaveAttribute('data-variant', 'default')
+    expect(item).toHaveTextContent('AI <ai@helpdesk.local>')
+    // The sender is also named "AI", so pick out the badge.
+    const badge = item.querySelector('[data-slot="badge"]')
+    expect(badge).toHaveTextContent(/^AI$/)
+    expect(badge).toHaveAttribute('data-variant', 'default')
     expect(within(item).getByText(/You can reset your password from the login page\./)).toBeInTheDocument()
   })
 

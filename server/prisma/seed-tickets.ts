@@ -8,6 +8,7 @@
 // script is safe to re-run: existing seed tickets (and any other tickets) are
 // left untouched.
 import type { AgentTicketStatus, TicketCategory } from "core";
+import { AI_AGENT_EMAIL } from "../src/aiAgent";
 import { prisma } from "../src/db";
 import type { Prisma } from "../src/generated/prisma/client";
 
@@ -148,7 +149,8 @@ const EMAIL_DOMAINS = [
   "acme-logistics.com", "northwind.io", "brightpath.edu", "globex.co", "uni-leeds.ac.uk", "contoso.com",
 ];
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 const MAX_AGE_DAYS = 90;
 
 // mulberry32: tiny deterministic PRNG so the seed data is the same every run.
@@ -186,8 +188,9 @@ const statuses = shuffle<AgentTicketStatus>(
   random,
 );
 
+// The AI agent only owns tickets during auto-resolution, so it's left out.
 const agents = await prisma.user.findMany({
-  where: { deletedAt: null },
+  where: { deletedAt: null, email: { not: AI_AGENT_EMAIL } },
   select: { id: true, name: true },
   orderBy: { createdAt: "asc" },
 });
@@ -208,6 +211,12 @@ const data: Prisma.TicketCreateManyInput[] = TICKETS.map(([category, subject, bo
   const assignee = random() < assignChance ? agents[Math.floor(random() * agents.length)]! : null;
 
   const createdAt = new Date(now - Math.floor(random() * MAX_AGE_DAYS * DAY_MS));
+  // Resolved/closed tickets took 1–96 hours (derived from the index rather than
+  // the PRNG, so the other generated values stay the same), but not past now.
+  const resolvedAt =
+    status === "resolved" || status === "closed"
+      ? new Date(Math.min(now, createdAt.getTime() + (1 + ((i * 37) % 96)) * HOUR_MS))
+      : null;
 
   return {
     subject,
@@ -218,6 +227,7 @@ const data: Prisma.TicketCreateManyInput[] = TICKETS.map(([category, subject, bo
     senderEmail: `${firstName}.${lastName}@${domain}`.toLowerCase(),
     assignedToId: assignee?.id ?? null,
     emailMessageId: `seed-${String(i + 1).padStart(3, "0")}@helpdesk.local`,
+    resolvedAt,
     createdAt,
   };
 });

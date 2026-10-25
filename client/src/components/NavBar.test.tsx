@@ -46,7 +46,6 @@ describe('NavBar', () => {
   it('shows admins the Tickets and Users links, their name and a sign-out button', () => {
     renderNavBar(admin)
     const nav = screen.getByRole('navigation')
-
     expect(within(nav).getByRole('link', { name: 'Tickets' })).toHaveAttribute('href', '/tickets')
     expect(within(nav).getByRole('link', { name: 'Users' })).toHaveAttribute('href', '/users')
     expect(within(nav).getByText('Ada Admin')).toBeInTheDocument()
@@ -56,7 +55,6 @@ describe('NavBar', () => {
   it('shows agents the Tickets link but not the admin-only Users link', () => {
     renderNavBar(agent)
     const nav = screen.getByRole('navigation')
-
     expect(within(nav).getByRole('link', { name: 'Tickets' })).toHaveAttribute('href', '/tickets')
     expect(within(nav).queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
     expect(within(nav).getByText('Alan Agent')).toBeInTheDocument()

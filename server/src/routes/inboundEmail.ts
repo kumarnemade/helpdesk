@@ -2,6 +2,7 @@ import { receiveEmailSchema, type ReceiveEmailInput } from "core";
 import { Router } from "express";
 import { fromPrisma } from "pg-boss";
 import { aiConfigured } from "../ai";
+import { findAiAgentId } from "../aiAgent";
 import { prisma } from "../db";
 import { Prisma } from "../generated/prisma/client";
 import {
@@ -71,7 +72,7 @@ inboundEmailRouter.post("/", async (req, res) => {
         where: { id: thread.id },
         data: {
           // A reply from the customer reopens a resolved ticket.
-          ...(thread.status === "resolved" && { status: "open" }),
+          ...(thread.status === "resolved" && { status: "open", resolvedAt: null }),
           replies: {
             create: {
               body: email.text,
@@ -91,7 +92,9 @@ inboundEmailRouter.post("/", async (req, res) => {
     // The classification and auto-resolve jobs are queued in the same
     // transaction, so they exist exactly when the ticket does. pg-boss workers
     // set the category and try to resolve the ticket from the knowledge base
-    // later; the provider gets its response right away.
+    // later; the provider gets its response right away. Meanwhile the ticket is
+    // assigned to the AI agent (when it has been seeded).
+    const aiAgentId = aiConfigured ? await findAiAgentId() : null;
     const ticket = await prisma.$transaction(async (tx) => {
       const created = await tx.ticket.create({
         data: {
@@ -101,6 +104,7 @@ inboundEmailRouter.post("/", async (req, res) => {
           senderName: email.fromName,
           senderEmail: email.from,
           emailMessageId: email.messageId,
+          assignedToId: aiAgentId,
         },
         select: { id: true },
       });

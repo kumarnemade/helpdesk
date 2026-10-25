@@ -6,6 +6,7 @@ import { auth, CLIENT_IP_HEADER } from "./auth";
 import { requireAuth } from "./middleware/requireAuth";
 import { requireRole } from "./middleware/requireRole";
 import { requireWebhookSecret } from "./middleware/requireWebhookSecret";
+import { dashboardRouter } from "./routes/dashboard";
 import { healthRouter } from "./routes/health";
 import { inboundEmailRouter } from "./routes/inboundEmail";
 import { meRouter } from "./routes/me";
@@ -47,6 +48,7 @@ app.use(express.json());
 
 app.use("/api/health", healthRouter);
 app.use("/api/me", requireAuth, meRouter);
+app.use("/api/dashboard", requireAuth, dashboardRouter);
 app.use("/api/tickets", requireAuth, ticketsRouter);
 app.use("/api/users", requireAuth, requireRole("admin"), usersRouter);
 

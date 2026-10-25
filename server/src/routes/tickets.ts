@@ -6,6 +6,7 @@ import {
   updateTicketSchema,
   type SortOrder,
   type TicketSortField,
+  type TicketStatus,
 } from "core";
 import { Router } from "express";
 import { aiConfigured, polishReply, summarizeTicket } from "../ai";
@@ -137,11 +138,17 @@ ticketsRouter.patch("/:id", async (req, res) => {
   const { id } = params.data;
   const { assignedToId, status, category } = body.data;
 
-  const existing = await prisma.ticket.findUnique({ where: { id }, select: { id: true } });
+  const existing = await prisma.ticket.findUnique({ where: { id }, select: { status: true } });
   if (!existing) {
     res.status(404).json({ error: "Ticket not found" });
     return;
   }
+
+  // resolvedAt is set when a ticket becomes resolved or closed and cleared when
+  // it goes back to new/open; resolved → closed keeps the original time.
+  const isResolved = (value: TicketStatus) => value === "resolved" || value === "closed";
+  const resolvedAt =
+    status && isResolved(status) !== isResolved(existing.status) ? (isResolved(status) ? new Date() : null) : undefined;
 
   // Deleted users can't be assigned new tickets. Only checked when an
   // assignee is sent (undefined leaves it unchanged, null unassigns).
@@ -159,7 +166,7 @@ ticketsRouter.patch("/:id", async (req, res) => {
   // Undefined fields are left as they are by Prisma.
   const ticket = await prisma.ticket.update({
     where: { id },
-    data: { assignedToId, status, category },
+    data: { assignedToId, status, category, resolvedAt },
     select: ticketDetailSelect,
   });
   res.json({ ticket });

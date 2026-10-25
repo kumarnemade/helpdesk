@@ -41,7 +41,7 @@
 - [x] Implement AI summary endpoint (generate ticket summary) — `POST /api/tickets/:id/summary` (Gemini via the Vercel AI SDK) with a "Summarize" button below the opening email; regenerated on every click, never saved
 - [ ] Implement AI suggested reply endpoint
 - [x] Build knowledge base structure and seed with initial content — `server/knowledge-base.md`
-- [x] AI auto-resolution — new tickets go `new` → `processing` (hidden from the ticket list) → `resolved` with an AI reply when the knowledge base answers them, else `open` for an agent (pg-boss job with retries and a dead-letter queue)
+- [x] AI auto-resolution — new tickets go `new` → `processing` (hidden from the ticket list) → `resolved` with an AI reply when the knowledge base answers them, else `open` for an agent (pg-boss job with retries and a dead-letter queue); tickets are assigned to the seeded "AI" agent (`db:seed:ai-agent`) during auto-resolution and unassigned when it hands them to agents
 - [x] AI reply polishing — "Polish" button in the reply form (`POST /api/tickets/:id/replies/polish`, Google `gemini-3.5-flash-lite` via the Vercel AI SDK)
 - [ ] Integrate AI features into ticket detail page UI
 
@@ -54,7 +54,7 @@
 
 ## Phase 7: Dashboard
 
-- [ ] Create dashboard page with ticket overview stats (open, resolved, closed counts)
+- [x] Create dashboard page with ticket overview stats — `/` shows total tickets, open tickets, tickets resolved by AI (count and %) and average resolution time (`GET /api/dashboard`, `Ticket.resolvedAt`), plus a bar chart of tickets per day over the last 30 days in the browser's time zone
 - [ ] Add tickets by category breakdown
 - [ ] Add recent tickets list
 - [ ] Add quick filters to navigate to filtered ticket list
