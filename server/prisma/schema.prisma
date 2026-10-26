@@ -153,6 +153,9 @@ model Reply {
   author         User?       @relation(fields: [authorId], references: [id])
   // Message-ID of the email this reply came from (or was sent as).
   emailMessageId String?     @unique
+  // When an agent or AI reply was emailed to the customer; null until then
+  // (and for customer replies), so a retried send job doesn't send it twice.
+  emailSentAt    DateTime?
   createdAt      DateTime    @default(now())
 
   @@index([ticketId])

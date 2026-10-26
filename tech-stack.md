@@ -27,7 +27,7 @@
 
 ## Email
 
-- SendGrid or Mailgun for outbound replies and inbound webhooks
+- Gmail (IMAP via `imapflow` + `mailparser` for inbound, SMTP via `nodemailer` for outbound replies); the provider-agnostic inbound webhook stays for other providers and testing
 
 ## Deployment
 

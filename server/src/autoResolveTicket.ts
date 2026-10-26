@@ -1,8 +1,11 @@
+import { fromPrisma } from "pg-boss";
 import { z } from "zod";
 import { autoResolveTicket } from "./ai";
 import { AI_AGENT_EMAIL, AI_AGENT_NAME, findAiAgentId } from "./aiAgent";
 import { prisma } from "./db";
 import { knowledgeBase } from "./knowledgeBase";
+import { emailConfigured, newOutgoingMessageId } from "./mailer";
+import { boss, SEND_REPLY_EMAIL_QUEUE, type SendReplyEmailJob } from "./queue";
 
 const AUTO_RESOLVE_TIMEOUT_MS = 30_000;
 
@@ -12,7 +15,8 @@ const autoResolveTicketJobSchema = z.object({ ticketId: z.number().int().positiv
 // pg-boss worker for AUTO_RESOLVE_TICKET_QUEUE: moves a new ticket to
 // "processing" (hiding it from the ticket list) and asks AI whether the
 // knowledge base answers it. If it does, the AI reply (written by the AI agent)
-// is saved and the ticket becomes "resolved", still assigned to the AI agent;
+// is saved (and emailed to the customer when Gmail is configured) and the
+// ticket becomes "resolved", still assigned to the AI agent;
 // otherwise it becomes "open" and is unassigned from the AI agent. Errors are
 // thrown so pg-boss retries the job (a retry finds the ticket already
 // processing). Every update requires the expected status, so a ticket an agent
@@ -48,7 +52,7 @@ export async function autoResolveTicketJob(data: unknown, signal: AbortSignal) {
         data: { status: "resolved", resolvedAt: new Date() },
       });
       if (count === 0) return false;
-      await tx.reply.create({
+      const reply = await tx.reply.create({
         data: {
           ticketId,
           body: result.reply,
@@ -56,8 +60,15 @@ export async function autoResolveTicketJob(data: unknown, signal: AbortSignal) {
           senderName: AI_AGENT_NAME,
           senderEmail: AI_AGENT_EMAIL,
           authorId: aiAgentId,
+          emailMessageId: emailConfigured ? newOutgoingMessageId() : undefined,
         },
+        select: { id: true },
       });
+      // The customer is emailed the AI's answer, like an agent reply.
+      if (emailConfigured) {
+        const job: SendReplyEmailJob = { replyId: reply.id };
+        await boss.send(SEND_REPLY_EMAIL_QUEUE, job, { db: fromPrisma(tx) });
+      }
       return true;
     });
     // An agent changed the status meanwhile: the AI doesn't keep the ticket.

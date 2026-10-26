@@ -47,9 +47,9 @@
 
 ## Phase 6: Email Integration
 
-- [ ] Set up email provider (SendGrid/Mailgun)
+- [x] Set up email provider — a Gmail account (no domain needed): `server/src/gmailInbox.ts` reads its unread inbox every minute over IMAP (pg-boss schedule) into tickets and customer replies, skipping automated mail; enabled by `GMAIL_USER` / `GMAIL_APP_PASSWORD`
 - [x] Implement inbound email webhook to create tickets
-- [ ] Implement outbound email sending when an agent replies
+- [x] Implement outbound email sending when an agent replies — agent and AI replies are emailed to the customer over Gmail SMTP by a `send-reply-email` job queued in the reply's transaction, threaded with `In-Reply-To`/`References`; `Reply.emailSentAt` prevents double sends
 - [x] Handle email threading (replies linked to existing tickets)
 
 ## Phase 7: Dashboard

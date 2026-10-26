@@ -4,11 +4,16 @@ import { app } from "./app";
 import { autoResolveTicketFailedJob, autoResolveTicketJob } from "./autoResolveTicket";
 import { classifyTicketJob } from "./classifyTicket";
 import { prisma } from "./db";
+import { pollGmailInboxJob } from "./gmailInbox";
+import { emailConfigured, sendReplyEmailJob } from "./mailer";
 import {
   AUTO_RESOLVE_TICKET_FAILED_QUEUE,
   AUTO_RESOLVE_TICKET_QUEUE,
   boss,
   CLASSIFY_TICKET_QUEUE,
+  POLL_GMAIL_INBOX_CRON,
+  POLL_GMAIL_INBOX_QUEUE,
+  SEND_REPLY_EMAIL_QUEUE,
   startQueue,
 } from "./queue";
 
@@ -35,6 +40,22 @@ if (aiConfigured) {
   // Nothing will finish auto-resolving these (e.g. the key was removed), so
   // hand them to agents rather than leave them hidden from the ticket list.
   await prisma.ticket.updateMany({ where: { status: "processing" }, data: { status: "open" } });
+}
+
+// Gmail: replies are emailed to customers and the inbox is read every minute.
+// Without the settings the schedule is removed, so no polls pile up unworked.
+if (emailConfigured) {
+  await boss.work(SEND_REPLY_EMAIL_QUEUE, async ([job]) => {
+    if (job) await sendReplyEmailJob(job.data);
+  });
+  await boss.work(POLL_GMAIL_INBOX_QUEUE, async ([job]) => {
+    if (job) await pollGmailInboxJob(job.signal);
+  });
+  await boss.schedule(POLL_GMAIL_INBOX_QUEUE, POLL_GMAIL_INBOX_CRON);
+  console.log("Email: on (Gmail inbox read every minute, replies emailed to customers).");
+} else {
+  await boss.unschedule(POLL_GMAIL_INBOX_QUEUE);
+  console.log("Email: off (set GMAIL_USER and GMAIL_APP_PASSWORD to read and send email through Gmail).");
 }
 
 const server = app.listen(port, () => {

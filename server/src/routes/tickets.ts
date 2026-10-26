@@ -9,9 +9,12 @@ import {
   type TicketStatus,
 } from "core";
 import { Router } from "express";
+import { fromPrisma } from "pg-boss";
 import { aiConfigured, polishReply, summarizeTicket } from "../ai";
 import { prisma } from "../db";
 import type { Prisma } from "../generated/prisma/client";
+import { emailConfigured, newOutgoingMessageId } from "../mailer";
+import { boss, SEND_REPLY_EMAIL_QUEUE, type SendReplyEmailJob } from "../queue";
 
 export const ticketsRouter = Router();
 
@@ -227,17 +230,28 @@ ticketsRouter.post("/:id/replies", async (req, res) => {
     return;
   }
 
+  // With Gmail configured, the email to the customer is queued in the same
+  // transaction, so it's sent exactly when the reply is saved; the agent gets
+  // the response without waiting for Gmail.
   const { user } = res.locals;
-  const reply = await prisma.reply.create({
-    data: {
-      ticketId: id,
-      body: body.data.body,
-      senderType: "agent",
-      senderName: user.name,
-      senderEmail: user.email,
-      authorId: user.id,
-    },
-    select: replySelect,
+  const reply = await prisma.$transaction(async (tx) => {
+    const created = await tx.reply.create({
+      data: {
+        ticketId: id,
+        body: body.data.body,
+        senderType: "agent",
+        senderName: user.name,
+        senderEmail: user.email,
+        authorId: user.id,
+        emailMessageId: emailConfigured ? newOutgoingMessageId() : undefined,
+      },
+      select: replySelect,
+    });
+    if (emailConfigured) {
+      const job: SendReplyEmailJob = { replyId: created.id };
+      await boss.send(SEND_REPLY_EMAIL_QUEUE, job, { db: fromPrisma(tx) });
+    }
+    return created;
   });
   res.status(201).json({ reply });
 });
