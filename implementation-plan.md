@@ -66,4 +66,4 @@
 - [ ] Add loading states and error states on the frontend
 - [ ] Write Dockerfile for server and client
 - [ ] Set up Docker Compose for local development
-- [ ] Write deployment configuration
+- [x] Write deployment configuration — Render free (Docker, `render.yaml`) + Supabase free Postgres, replies via the Gmail API; guide in `DEPLOYMENT.md`

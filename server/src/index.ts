@@ -6,7 +6,7 @@ import { autoResolveTicketFailedJob, autoResolveTicketJob } from "./autoResolveT
 import { classifyTicketJob } from "./classifyTicket";
 import { prisma } from "./db";
 import { pollGmailInboxJob } from "./gmailInbox";
-import { emailConfigured, sendReplyEmailJob } from "./mailer";
+import { emailConfigured, emailSendMethod, sendReplyEmailJob } from "./mailer";
 import {
   AUTO_RESOLVE_TICKET_FAILED_QUEUE,
   AUTO_RESOLVE_TICKET_QUEUE,
@@ -44,7 +44,7 @@ if (emailConfigured) {
   await boss.work(SEND_REPLY_EMAIL_QUEUE, reportJobErrors(SEND_REPLY_EMAIL_QUEUE, (job) => sendReplyEmailJob(job.data)));
   await boss.work(POLL_GMAIL_INBOX_QUEUE, reportJobErrors(POLL_GMAIL_INBOX_QUEUE, (job) => pollGmailInboxJob(job.signal)));
   await boss.schedule(POLL_GMAIL_INBOX_QUEUE, POLL_GMAIL_INBOX_CRON);
-  console.log("Email: on (Gmail inbox read every minute, replies emailed to customers).");
+  console.log(`Email: on (Gmail inbox read every minute, replies emailed to customers via ${emailSendMethod}).`);
 } else {
   await boss.unschedule(POLL_GMAIL_INBOX_QUEUE);
   console.log("Email: off (set GMAIL_USER and GMAIL_APP_PASSWORD to read and send email through Gmail).");

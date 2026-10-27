@@ -3,8 +3,9 @@ import { type Job, PgBoss } from "pg-boss";
 
 // Background jobs, stored in Postgres by pg-boss in its own `pgboss` schema
 // (created and migrated by pg-boss on start; Prisma only manages `public`).
-// Jobs survive server restarts and failed jobs are retried.
-export const boss = new PgBoss({ connectionString: process.env.DATABASE_URL, schema: "pgboss" });
+// Jobs survive server restarts and failed jobs are retried. Its pool is capped
+// at 5 connections, like Prisma's (db.ts).
+export const boss = new PgBoss({ connectionString: process.env.DATABASE_URL, schema: "pgboss", max: 5 });
 
 boss.on("error", (err) => {
   console.error("pg-boss error:", err);

@@ -1,0 +1,48 @@
+# Render Blueprint: one free Docker web service (API + built client). The
+# database is Supabase (free), not Render Postgres, whose free databases expire
+# after 30 days. Setup steps are in DEPLOYMENT.md.
+services:
+  - type: web
+    name: helpdesk
+    runtime: docker
+    plan: free
+    # Pick the Supabase region closest to this one (Singapore ↔ ap-southeast-1).
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      # Supabase "Session pooler" connection string (port 5432, IPv4).
+      - key: DATABASE_URL
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: INBOUND_EMAIL_SECRET
+        generateValue: true
+      # Cloudflare sets this on every request to a Render service, overwriting
+      # any client value, so rate limiting sees the real client IP.
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
+      # CLIENT_ORIGIN and BETTER_AUTH_URL default to the service's
+      # onrender.com URL; add both in the dashboard for a custom domain.
+
+      # Gmail: the inbox is read over IMAP with the App Password; replies are
+      # sent through the Gmail API (Render's free plan blocks SMTP ports).
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: GMAIL_CLIENT_ID
+        sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
+        sync: false
+      # Optional: AI features and error reporting.
+      - key: GOOGLE_GENERATIVE_AI_API_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      # Read at build time (baked into the client by Vite).
+      - key: VITE_SENTRY_DSN
+        sync: false

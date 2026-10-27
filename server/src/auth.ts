@@ -4,10 +4,13 @@ import { APIError } from "better-auth/api";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "core";
 import { prisma } from "./db";
 
-const clientOrigin = process.env.CLIENT_ORIGIN;
+// On Render, both default to the service's own URL (RENDER_EXTERNAL_URL),
+// since the API serves the client from the same origin there.
+const clientOrigin = process.env.CLIENT_ORIGIN || process.env.RENDER_EXTERNAL_URL;
 if (!clientOrigin) {
   throw new Error("CLIENT_ORIGIN is not set");
 }
+const baseURL = process.env.BETTER_AUTH_URL || process.env.RENDER_EXTERNAL_URL;
 
 // Better Auth reads BETTER_AUTH_SECRET itself; refuse to start with a missing,
 // placeholder or short secret so sessions are never signed with a weak key.
@@ -18,14 +21,15 @@ if (!secret || secret === "CHANGE_ME" || secret.length < 32) {
   );
 }
 
-// Set by app.ts from Express's req.ip (which honours TRUST_PROXY), after
-// discarding any client-supplied value, so rate limiting can't be dodged by
-// spoofing X-Forwarded-For.
+// Set by app.ts from Express's req.ip (which honours TRUST_PROXY), or from
+// CLIENT_IP_HEADER when set, after discarding any client-supplied value, so
+// rate limiting can't be dodged by spoofing X-Forwarded-For.
 export const CLIENT_IP_HEADER = "x-helpdesk-client-ip";
 
 // Sessions are stored in the `session` table (no cookie cache), so every
 // getSession call is checked against the database.
 export const auth = betterAuth({
+  baseURL,
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   // Public sign-up is off: users are created by an admin (Phase 3).
   emailAndPassword: {

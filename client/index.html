@@ -6,14 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Helpdesk</title>
     <!-- Apply the saved theme before the first paint (see src/lib/theme.ts). -->
-    <script>
-      try {
-        var theme = localStorage.getItem('helpdesk-theme')
-        if (theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.classList.add('dark')
-        }
-      } catch (e) {}
-    </script>
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

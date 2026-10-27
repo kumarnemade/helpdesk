@@ -3,8 +3,8 @@ import { z } from 'zod'
 
 // The viewer's colour theme choice; "system" follows the OS setting. Saved in
 // localStorage, which can be unavailable (private windows, blocked storage),
-// so every access falls back to "system". index.html applies the saved theme
-// before the first paint with the same key.
+// so every access falls back to "system". public/theme-init.js applies the
+// saved theme before the first paint with the same key.
 export const THEMES = ['light', 'dark', 'system'] as const
 export type Theme = (typeof THEMES)[number]
 
