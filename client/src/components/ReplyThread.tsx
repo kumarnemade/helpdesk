@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { cn } from 'cn'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -41,9 +42,11 @@ export function ReplyThread({ ticketId }: { ticketId: number }) {
 
   return (
     <ol aria-label="Replies" className="space-y-4">
+      {/* Customer emails on the left; agent and AI replies offset to the right,
+          with a teal edge on the AI's. */}
       {replies.map((reply) => (
-        <li key={reply.id}>
-          <Card>
+        <li key={reply.id} data-sender={reply.senderType} className={cn(reply.senderType !== 'customer' && 'ml-6 sm:ml-12')}>
+          <Card className={cn(reply.senderType === 'ai' && 'border-l-4 border-l-ai')}>
             <CardHeader>
               <CardTitle className="flex flex-wrap items-center gap-2">
                 <span>
@@ -58,7 +61,7 @@ export function ReplyThread({ ticketId }: { ticketId: number }) {
             </CardHeader>
             <CardContent>
               {/* Plain-text body; bodyHtml is untrusted and isn't sent to the client. */}
-              <p className="text-sm font-[family-name:Arial,Helvetica,sans-serif] font-bold whitespace-pre-wrap break-words">{reply.body}</p>
+              <p className="max-w-[70ch] font-serif text-base leading-7 whitespace-pre-wrap break-words">{reply.body}</p>
             </CardContent>
           </Card>
         </li>

@@ -44,8 +44,8 @@ export function TicketSummary({ ticketId }: { ticketId: number }) {
 
   return (
     <section aria-label="Ticket summary" className="space-y-3">
-      <Button type="button" variant="outline" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-        <SparklesIcon data-icon="inline-start" aria-hidden="true" />
+      <Button type="button" variant="outline" className="w-full" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+        <SparklesIcon data-icon="inline-start" className="text-ai" aria-hidden="true" />
         {mutation.isPending ? 'Summarizing…' : mutation.data ? 'Regenerate summary' : 'Summarize'}
       </Button>
       {mutation.isError && (
@@ -54,11 +54,11 @@ export function TicketSummary({ ticketId }: { ticketId: number }) {
         </p>
       )}
       {mutation.data && (
-        <Card>
+        <Card className="border-l-4 border-l-ai">
           <CardHeader>
             <CardTitle>
               <h2 className="flex items-center gap-2">
-                <SparklesIcon className="text-muted-foreground" aria-hidden="true" />
+                <SparklesIcon className="text-ai" aria-hidden="true" />
                 Summary
               </h2>
             </CardTitle>

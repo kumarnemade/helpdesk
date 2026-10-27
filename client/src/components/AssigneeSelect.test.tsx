@@ -162,6 +162,24 @@ describe('AssigneeSelect', () => {
     expect(screen.getByRole('combobox', { name: 'Assigned to' })).toHaveTextContent('Former Agent')
   })
 
+  // The AI agent isn't in the list (only auto-resolution assigns it), nor are
+  // deleted users: a ticket they hold shows them, but they can't be chosen.
+  it("shows the AI agent on a ticket it holds but doesn't let it be chosen", async () => {
+    const user = userEvent.setup()
+    mockAssignees()
+    const patch = vi.spyOn(axios, 'patch')
+    renderSelect({ id: 'ai', name: 'AI' })
+
+    const trigger = screen.getByRole('combobox', { name: 'Assigned to' })
+    expect(trigger).toHaveTextContent('AI')
+    await user.click(trigger)
+
+    const ai = await screen.findByRole('option', { name: 'AI' })
+    expect(ai).toHaveAttribute('aria-disabled', 'true')
+    await user.click(ai)
+    expect(patch).not.toHaveBeenCalled()
+  })
+
   it('says when the assignees fail to load', async () => {
     vi.spyOn(axios, 'get').mockRejectedValue(new Error('Request failed with status code 500'))
     renderSelect()

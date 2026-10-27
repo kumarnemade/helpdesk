@@ -101,12 +101,14 @@ describe('ReplyThread', () => {
 
     const [customer, agent] = items as [HTMLElement, HTMLElement]
     expect(customer).toHaveTextContent('Priya Shah <priya@example.com>')
+    expect(customer).toHaveAttribute('data-sender', 'customer')
     expect(within(customer).getByText('Customer')).toHaveAttribute('data-variant', 'outline')
     expect(within(customer).getByText(new Date(replies[0]!.createdAt).toLocaleString())).toBeInTheDocument()
     // Line breaks in the plain-text body are kept (whitespace-pre-wrap).
     expect(within(customer).getByText(/Any update on my refund\?\s+It has been a week\./)).toBeInTheDocument()
 
     expect(agent).toHaveTextContent('Alan Agent <alan@example.com>')
+    expect(agent).toHaveAttribute('data-sender', 'agent')
     expect(within(agent).getByText('Agent')).toHaveAttribute('data-variant', 'secondary')
     expect(within(agent).getByText('Sorry for the wait, the refund is on its way.')).toBeInTheDocument()
   })
@@ -120,7 +122,8 @@ describe('ReplyThread', () => {
     // The sender is also named "AI", so pick out the badge.
     const badge = item.querySelector('[data-slot="badge"]')
     expect(badge).toHaveTextContent(/^AI$/)
-    expect(badge).toHaveAttribute('data-variant', 'default')
+    expect(badge).toHaveAttribute('data-variant', 'ai')
+    expect(item).toHaveAttribute('data-sender', 'ai')
     expect(within(item).getByText(/You can reset your password from the login page\./)).toBeInTheDocument()
   })
 

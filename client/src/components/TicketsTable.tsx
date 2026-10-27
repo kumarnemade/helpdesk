@@ -26,8 +26,8 @@ import {
 } from 'core'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { TicketFilters } from '@/components/TicketFilters'
+import { StatusLamp } from '@/components/StatusLamp'
 import { TicketsPagination } from '@/components/TicketsPagination'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -41,8 +41,6 @@ import {
 import {
   fetchTickets,
   TICKET_CATEGORY_LABELS,
-  TICKET_STATUS_BADGE_VARIANTS,
-  TICKET_STATUS_LABELS,
   ticketsListQueryKey,
   type Ticket,
   type TicketLinkState,
@@ -66,7 +64,7 @@ const PAGE_SIZE_KEY = 'pageSize'
 function SubjectLink({ ticket }: { ticket: Ticket }) {
   const { search } = useLocation()
   return (
-    <Link to={`/tickets/${ticket.id}`} state={{ from: search } satisfies TicketLinkState} className="hover:underline">
+    <Link to={`/tickets/${ticket.id}`} state={{ from: search } satisfies TicketLinkState} className="font-medium hover:text-primary hover:underline">
       {ticket.subject}
     </Link>
   )
@@ -97,9 +95,7 @@ const columns = columnHelper.columns([
   }),
   columnHelper.accessor('status', {
     header: 'Status',
-    cell: ({ getValue }) => (
-      <Badge variant={TICKET_STATUS_BADGE_VARIANTS[getValue()]}>{TICKET_STATUS_LABELS[getValue()]}</Badge>
-    ),
+    cell: ({ getValue }) => <StatusLamp status={getValue()} className="whitespace-nowrap" />,
   }),
   columnHelper.accessor('category', {
     header: 'Category',
@@ -108,17 +104,13 @@ const columns = columnHelper.columns([
       return category ? TICKET_CATEGORY_LABELS[category] : <span className="text-muted-foreground">—</span>
     },
   }),
-  columnHelper.accessor('assignedTo', {
-    header: 'Assigned to',
-    cell: ({ getValue }) => getValue()?.name ?? <span className="text-muted-foreground">Unassigned</span>,
-  }),
   columnHelper.accessor('createdAt', {
     header: 'Received',
     cell: ({ getValue }) => new Date(getValue()).toLocaleDateString(),
   }),
 ])
 
-const SKELETON_WIDTHS = ['h-4 w-48', 'h-4 w-36', 'h-5 w-16 rounded-4xl', 'h-4 w-28', 'h-4 w-24', 'h-4 w-20']
+const SKELETON_WIDTHS = ['h-4 w-48', 'h-4 w-36', 'h-4 w-16', 'h-4 w-28', 'h-4 w-20']
 
 // Search and filters live in the URL (/tickets?search=refund&status=open) so
 // filtered views can be bookmarked and linked to. Invalid values are ignored.
@@ -282,7 +274,7 @@ export function TicketsTable() {
           })
         }
       />
-      <div className="rounded-md border">
+      <div className="rounded-lg border bg-card">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -340,7 +332,7 @@ export function TicketsTable() {
                   {row.getAllCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className={cell.column.id === 'subject' ? 'max-w-xs truncate font-[family-name:Arial,Helvetica,sans-serif] font-bold' : undefined}
+                      className={cell.column.id === 'subject' ? 'max-w-xs truncate' : undefined}
                     >
                       <table.FlexRender cell={cell} />
                     </TableCell>

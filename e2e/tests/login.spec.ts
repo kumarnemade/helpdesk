@@ -13,7 +13,8 @@ test.describe("Login", () => {
     await page.getByLabel("Password").fill(admin.password);
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL("/");
-    await expect(page.getByRole("heading", { name: `Welcome, ${admin.name}` })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("navigation")).toContainText(admin.name);
   });
 
   test("email is matched case-insensitively", async ({ page }) => {
@@ -51,6 +52,7 @@ test.describe("Login page when already authenticated", () => {
     await expect(page).toHaveURL("/");
     await page.goto("/login");
     await expect(page).toHaveURL("/");
-    await expect(page.getByRole("heading", { name: `Welcome, ${agent.name}` })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("navigation")).toContainText(agent.name);
   });
 });

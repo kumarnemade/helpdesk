@@ -1,7 +1,7 @@
 import { AGENT_TICKET_STATUSES, type AgentTicketStatus, type TicketStatus } from 'core'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { updateTicketErrorMessage, useUpdateTicket } from '@/hooks/useUpdateTicket'
-import { TICKET_STATUS_LABELS } from '@/lib/tickets'
+import { StatusLamp } from '@/components/StatusLamp'
 
 type Props = {
   ticketId: number
@@ -29,12 +29,12 @@ export function StatusSelect({ ticketId, status }: Props) {
               ticket is in it, but agents can't choose it. */}
           {current === 'processing' && (
             <SelectItem value="processing" disabled>
-              {TICKET_STATUS_LABELS.processing}
+              <StatusLamp status="processing" />
             </SelectItem>
           )}
           {AGENT_TICKET_STATUSES.map((value) => (
             <SelectItem key={value} value={value}>
-              {TICKET_STATUS_LABELS[value]}
+              <StatusLamp status={value} />
             </SelectItem>
           ))}
         </SelectContent>

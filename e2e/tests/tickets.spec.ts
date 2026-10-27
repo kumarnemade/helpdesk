@@ -406,6 +406,44 @@ test.describe("Ticket assignment", () => {
     });
   });
 
+  // The AI agent (ai@helpdesk.local) is server-owned: it never appears in the
+  // assignee list and tickets can't be assigned to it. The test DB isn't seeded
+  // with it, so this one test creates it through the admin API (always role
+  // agent; name "AI Agent" because the API needs 3+ chars, the server matches
+  // by email) and soft-deletes it at the end. While it exists the webhook
+  // assigns new tickets to it, so it is kept to a single short test to avoid
+  // disturbing the other (parallel) tests that expect unassigned tickets.
+  test.describe("AI agent (as admin)", () => {
+    test.use({ storageState: ADMIN_STATE });
+
+    test("is left out of the assignee list and can't be assigned tickets", async ({ request }) => {
+      const t = await createTicket(request, "Assign to AI");
+      const created = await request.post(`${API_URL}/api/users`, {
+        data: { name: "AI Agent", email: "ai@helpdesk.local", password: "a-valid-password-123" },
+      });
+      expect(created.status()).toBe(201);
+      const { user: ai } = (await created.json()) as { user: Assignee };
+
+      try {
+        const users = await assignees(request);
+        expect(users.map((u) => u.id)).not.toContain(ai.id);
+        expect(users.map((u) => u.name)).toEqual(expect.arrayContaining([admin.name, agent.name]));
+
+        const agentUser = users.find((u) => u.name === agent.name)!;
+        expect((await assign(request, t.id, agentUser.id)).status()).toBe(200);
+
+        const res = await assign(request, t.id, ai.id);
+        expect(res.status()).toBe(400);
+        expect(await res.json()).toEqual({ error: "Tickets can't be assigned to the AI agent" });
+
+        const detail = await (await request.get(`${API_URL}/api/tickets/${t.id}`)).json();
+        expect(detail.ticket.assignedTo).toEqual(agentUser);
+      } finally {
+        await request.delete(`${API_URL}/api/users/${ai.id}`);
+      }
+    });
+  });
+
   test.describe("without a session", () => {
     test.use({ storageState: { cookies: [], origins: [] } });
 

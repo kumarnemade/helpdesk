@@ -96,7 +96,7 @@ export function ReplyForm({ ticketId }: { ticketId: number }) {
         <Textarea
           id="reply-body"
           placeholder="Write a reply…"
-          className="min-h-28 font-[family-name:Arial,Helvetica,sans-serif] font-bold"
+          className="min-h-28 font-serif text-base leading-7"
           aria-invalid={errors.body ? true : undefined}
           {...register('body')}
         />

@@ -21,7 +21,8 @@ test.describe("Agent", () => {
   test("is redirected from /users to home on direct navigation", async ({ page }) => {
     await page.goto("/users");
     await expect(page).toHaveURL("/");
-    await expect(page.getByRole("heading", { name: `Welcome, ${agent.name}` })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("navigation")).toContainText(agent.name);
     await expect(page.getByRole("heading", { name: "Users" })).toHaveCount(0);
   });
 

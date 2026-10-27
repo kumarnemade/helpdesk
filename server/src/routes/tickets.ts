@@ -11,6 +11,7 @@ import {
 import { Router } from "express";
 import { fromPrisma } from "pg-boss";
 import { aiConfigured, polishReply, summarizeTicket } from "../ai";
+import { AI_AGENT_EMAIL } from "../aiAgent";
 import { prisma } from "../db";
 import type { Prisma } from "../generated/prisma/client";
 import { emailConfigured, newOutgoingMessageId } from "../mailer";
@@ -86,12 +87,13 @@ ticketsRouter.get("/", async (req, res) => {
   res.json({ tickets, total });
 });
 
-// People a ticket can be assigned to: every active user (agents and admins),
-// for the assignee dropdown. Registered before "/:id" so "assignees" isn't
+// People a ticket can be assigned to: every active user (agents and admins)
+// except the AI agent, which only auto-resolution assigns, for the assignee
+// dropdown. Registered before "/:id" so "assignees" isn't
 // read as a ticket id. /api/users is admin-only, so agents need this instead.
 ticketsRouter.get("/assignees", async (_req, res) => {
   const users = await prisma.user.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, email: { not: AI_AGENT_EMAIL } },
     select: { id: true, name: true },
     orderBy: [{ name: "asc" }, { id: "asc" }],
   });
@@ -153,15 +155,20 @@ ticketsRouter.patch("/:id", async (req, res) => {
   const resolvedAt =
     status && isResolved(status) !== isResolved(existing.status) ? (isResolved(status) ? new Date() : null) : undefined;
 
-  // Deleted users can't be assigned new tickets. Only checked when an
-  // assignee is sent (undefined leaves it unchanged, null unassigns).
+  // Deleted users can't be assigned new tickets, and only auto-resolution
+  // assigns the AI agent. Only checked when an assignee is sent (undefined
+  // leaves it unchanged, null unassigns).
   if (assignedToId) {
     const assignee = await prisma.user.findFirst({
       where: { id: assignedToId, deletedAt: null },
-      select: { id: true },
+      select: { email: true },
     });
     if (!assignee) {
       res.status(400).json({ error: "Assignee not found" });
+      return;
+    }
+    if (assignee.email === AI_AGENT_EMAIL) {
+      res.status(400).json({ error: "Tickets can't be assigned to the AI agent" });
       return;
     }
   }

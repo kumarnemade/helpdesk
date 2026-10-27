@@ -7,6 +7,9 @@ import * as Sentry from '@sentry/react'
 import './index.css'
 import App from './App.tsx'
 import { queryClient } from './lib/query-client'
+import { watchSystemTheme } from './lib/theme'
+
+watchSystemTheme()
 
 createRoot(document.getElementById('root')!, {
   // Report render errors to Sentry: uncaught ones, ones caught by an error

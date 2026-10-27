@@ -59,7 +59,8 @@ test.describe("User management flow (admin)", () => {
       await userPage.getByLabel("Password").fill(user.password);
       await userPage.getByRole("button", { name: "Sign in" }).click();
       await expect(userPage).toHaveURL("/");
-      await expect(userPage.getByRole("heading", { name: `Welcome, ${user.name}` })).toBeVisible();
+      await expect(userPage.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+      await expect(userPage.getByRole("navigation")).toContainText(user.name);
     } finally {
       await userCtx.close();
     }

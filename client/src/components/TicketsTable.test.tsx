@@ -79,9 +79,11 @@ describe('TicketsTable', () => {
     mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
     renderTable()
 
-    for (const name of ['Subject', 'From', 'Status', 'Category', 'Assigned to', 'Received']) {
+    for (const name of ['Subject', 'From', 'Status', 'Category', 'Received']) {
       expect(screen.getByRole('columnheader', { name })).toBeInTheDocument()
     }
+    // Assignees are shown and changed on the ticket page only.
+    expect(screen.queryByRole('columnheader', { name: 'Assigned to' })).not.toBeInTheDocument()
     await screen.findByText('Refund for duplicate charge')
   })
 
@@ -103,7 +105,7 @@ describe('TicketsTable', () => {
 
     await screen.findByText('Refund for duplicate charge')
     expect(screen.getByRole('columnheader', { name: 'Received' })).toHaveAttribute('aria-sort', 'descending')
-    for (const name of ['Subject', 'From', 'Status', 'Category', 'Assigned to']) {
+    for (const name of ['Subject', 'From', 'Status', 'Category']) {
       expect(screen.getByRole('columnheader', { name })).toHaveAttribute('aria-sort', 'none')
     }
   })
@@ -134,21 +136,6 @@ describe('TicketsTable', () => {
     expect(screen.getByRole('columnheader', { name: 'Subject' })).toHaveAttribute('aria-sort', 'descending')
   })
 
-  it('sorts the assignee column by the server-side assignedTo field', async () => {
-    const user = userEvent.setup()
-    const get = mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
-    renderTable()
-    await screen.findByText('Refund for duplicate charge')
-
-    await user.click(screen.getByRole('button', { name: 'Assigned to' }))
-    await waitFor(() =>
-      expect(get).toHaveBeenLastCalledWith('/api/tickets', {
-        params: { sortBy: 'assignedTo', sortOrder: 'asc', page: 1, pageSize: 10 },
-        signal: expect.any(AbortSignal),
-      }),
-    )
-  })
-
   it('renders the re-sorted rows in the order the server returns them', async () => {
     const user = userEvent.setup()
     const bySubject = [tickets[1]!, tickets[2]!, tickets[0]!].sort((a, b) => a.subject.localeCompare(b.subject))
@@ -176,7 +163,8 @@ describe('TicketsTable', () => {
     expect(screen.getByText('Loading tickets…')).toBeInTheDocument()
     // Header row + 3 skeleton rows.
     expect(screen.getAllByRole('row')).toHaveLength(4)
-    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(18)
+    // 3 rows × 5 columns.
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(15)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -193,7 +181,7 @@ describe('TicketsTable', () => {
     ])
   })
 
-  it('renders sender, status, category, assignee and received date', async () => {
+  it('renders sender, status, category and received date', async () => {
     mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
     renderTable()
 
@@ -203,21 +191,20 @@ describe('TicketsTable', () => {
     expect(assignedCells[1]).toHaveTextContent('priya@example.com')
     expect(assignedCells[2]).toHaveTextContent('Open')
     expect(assignedCells[3]).toHaveTextContent('Refund Request')
-    expect(assignedCells[4]).toHaveTextContent('Alan Agent')
-    expect(assignedCells[5]).toHaveTextContent(new Date(tickets[0]!.createdAt).toLocaleDateString())
+    expect(assignedCells[4]).toHaveTextContent(new Date(tickets[0]!.createdAt).toLocaleDateString())
 
     const newRow = screen.getByText('Unable to access course materials').closest('tr')!
     const newCells = within(newRow).getAllByRole('cell')
     expect(newCells[2]).toHaveTextContent('New')
     expect(newCells[3]).toHaveTextContent('—')
-    expect(newCells[4]).toHaveTextContent('Unassigned')
 
     expect(screen.queryByText('Loading tickets…')).not.toBeInTheDocument()
   })
 
   it('links each subject to the ticket page, passing the list view along', async () => {
     const user = userEvent.setup()
-    mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
+    // Enough tickets for a page 2, so the list doesn't move back to page 1.
+    mockGet().mockResolvedValue({ data: { tickets, total: 25 } })
     renderWithQueryClient(
       <MemoryRouter initialEntries={['/tickets?status=open&page=2']}>
         <Routes>
@@ -235,14 +222,14 @@ describe('TicketsTable', () => {
     expect(screen.getByText('Ticket page /tickets/3 from ?status=open&page=2')).toBeInTheDocument()
   })
 
-  it('uses a badge variant per status', async () => {
+  it('shows each status as a lamp with its label', async () => {
     mockGet().mockResolvedValue({ data: { tickets, total: tickets.length } })
     renderTable()
 
     await screen.findByText('Refund for duplicate charge')
-    expect(screen.getByText('New')).toHaveAttribute('data-variant', 'default')
-    expect(screen.getByText('Open')).toHaveAttribute('data-variant', 'secondary')
-    expect(screen.getByText('Closed')).toHaveAttribute('data-variant', 'outline')
+    expect(screen.getByText('New')).toHaveAttribute('data-status', 'new')
+    expect(screen.getByText('Open')).toHaveAttribute('data-status', 'open')
+    expect(screen.getByText('Closed')).toHaveAttribute('data-status', 'closed')
   })
 
   it('shows the empty state when there are no tickets', async () => {

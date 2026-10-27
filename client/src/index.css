@@ -1,13 +1,22 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/hanken-grotesk";
+@import "@fontsource-variable/source-serif-4";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'Hanken Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+    --font-serif: 'Source Serif 4 Variable', ui-serif, Georgia, serif;
+    --color-ai: var(--ai);
+    --color-ai-foreground: var(--ai-foreground);
+    --color-status-new: var(--status-new);
+    --color-status-processing: var(--status-processing);
+    --color-status-open: var(--status-open);
+    --color-status-resolved: var(--status-resolved);
+    --color-status-closed: var(--status-closed);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,73 +57,89 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Switchboard: cool grey paper, navy ink, cobalt signal. Teal is reserved for
+   work done by the AI agent; the status colours are the queue's lamps. */
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --background: #F4F6F9;
+    --foreground: #16213A;
+    --card: #FFFFFF;
+    --card-foreground: #16213A;
+    --popover: #FFFFFF;
+    --popover-foreground: #16213A;
+    --primary: #2D4BD8;
+    --primary-foreground: #FFFFFF;
+    --secondary: #E9EDF4;
+    --secondary-foreground: #16213A;
+    --muted: #EDF0F5;
+    --muted-foreground: #5B6478;
+    --accent: #E9EDF4;
+    --accent-foreground: #16213A;
+    --destructive: #C0362C;
+    --border: #DDE2EA;
+    --input: #CED5E0;
+    --ring: #2D4BD8;
+    --ai: #0E7C72;
+    --ai-foreground: #FFFFFF;
+    --status-new: #2D4BD8;
+    --status-processing: #0E7C72;
+    --status-open: #D99A00;
+    --status-resolved: #2E8A5A;
+    --status-closed: #8B94A5;
+    --chart-1: #2D4BD8;
+    --chart-2: #0E7C72;
+    --chart-3: #D99A00;
+    --chart-4: #2E8A5A;
+    --chart-5: #8B94A5;
+    --radius: 0.5rem;
+    --sidebar: #16213A;
+    --sidebar-foreground: #E8ECF4;
+    --sidebar-primary: #8FA2F5;
+    --sidebar-primary-foreground: #16213A;
+    --sidebar-accent: #24314F;
+    --sidebar-accent-foreground: #FFFFFF;
+    --sidebar-border: #2A3757;
+    --sidebar-ring: #8FA2F5;
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --background: #0F1626;
+    --foreground: #E6EAF2;
+    --card: #17203A;
+    --card-foreground: #E6EAF2;
+    --popover: #17203A;
+    --popover-foreground: #E6EAF2;
+    --primary: #6F86F0;
+    --primary-foreground: #0F1626;
+    --secondary: #222C47;
+    --secondary-foreground: #E6EAF2;
+    --muted: #1C2540;
+    --muted-foreground: #9AA3B7;
+    --accent: #222C47;
+    --accent-foreground: #E6EAF2;
+    --destructive: #F0776C;
+    --border: #26304A;
+    --input: #323D5C;
+    --ring: #6F86F0;
+    --ai: #2DB3A6;
+    --ai-foreground: #0F1626;
+    --status-new: #6F86F0;
+    --status-processing: #2DB3A6;
+    --status-open: #F2B53A;
+    --status-resolved: #4FB882;
+    --status-closed: #7D879B;
+    --chart-1: #6F86F0;
+    --chart-2: #2DB3A6;
+    --chart-3: #F2B53A;
+    --chart-4: #4FB882;
+    --chart-5: #7D879B;
+    --sidebar: #0B1120;
+    --sidebar-foreground: #E6EAF2;
+    --sidebar-primary: #8FA2F5;
+    --sidebar-primary-foreground: #0B1120;
+    --sidebar-accent: #1A2340;
+    --sidebar-accent-foreground: #FFFFFF;
+    --sidebar-border: #1E2842;
+    --sidebar-ring: #8FA2F5;
 }
 
 @layer base {
@@ -122,9 +147,13 @@
     @apply border-border outline-ring/50;
     }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
     }
   html {
-    @apply font-sans;
+    @apply font-sans tabular-nums;
+    color-scheme: light;
+    }
+  html.dark {
+    color-scheme: dark;
     }
 }

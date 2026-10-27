@@ -126,13 +126,14 @@ export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   closed: 'Closed',
 }
 
-// Badge variant per status, shared by the list and the detail page.
-export const TICKET_STATUS_BADGE_VARIANTS = {
-  new: 'default',
-  processing: 'secondary',
-  open: 'secondary',
-  resolved: 'outline',
-  closed: 'outline',
+// Lamp colour per status (StatusLamp), shared by the list and the detail page.
+// "processing" uses the AI colour: the AI agent is working on those tickets.
+export const TICKET_STATUS_LAMP_CLASSES = {
+  new: 'bg-status-new',
+  processing: 'bg-status-processing',
+  open: 'bg-status-open',
+  resolved: 'bg-status-resolved',
+  closed: 'bg-status-closed',
 } as const satisfies Record<TicketStatus, string>
 
 export const REPLY_SENDER_LABELS: Record<ReplySenderType, string> = {
@@ -144,7 +145,7 @@ export const REPLY_SENDER_LABELS: Record<ReplySenderType, string> = {
 export const REPLY_SENDER_BADGE_VARIANTS = {
   customer: 'outline',
   agent: 'secondary',
-  ai: 'default',
+  ai: 'ai',
 } as const satisfies Record<ReplySenderType, string>
 
 export const TICKET_CATEGORY_LABELS: Record<TicketCategory, string> = {

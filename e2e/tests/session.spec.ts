@@ -35,10 +35,12 @@ test.describe("Session persistence (shared admin session)", () => {
 
   test("stays signed in after a reload", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: `Welcome, ${admin.name}` })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("navigation")).toContainText(admin.name);
     await page.reload();
     await expect(page).toHaveURL("/");
-    await expect(page.getByRole("heading", { name: `Welcome, ${admin.name}` })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("navigation")).toContainText(admin.name);
   });
 
   test("is shared with a second page in the same context", async ({ page, context }) => {
@@ -74,7 +76,8 @@ test.describe("Logout", () => {
     await loginViaUi(page, agent);
     const other = await context.newPage();
     await other.goto("/");
-    await expect(other.getByRole("heading", { name: `Welcome, ${agent.name}` })).toBeVisible();
+    await expect(other.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+    await expect(other.getByRole("navigation")).toContainText(agent.name);
 
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/login$/);
@@ -106,6 +109,7 @@ test.describe("Logout", () => {
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/login$/);
     await loginViaUi(page, agent);
-    await expect(page.getByRole("heading", { name: `Welcome, ${agent.name}` })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("navigation")).toContainText(agent.name);
   });
 });

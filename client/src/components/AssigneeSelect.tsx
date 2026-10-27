@@ -22,10 +22,12 @@ export function AssigneeSelect({ ticketId, assignedTo }: Props) {
   // Show the choice while it saves; on failure fall back to the saved assignee.
   const currentId = mutation.isPending ? mutation.variables.assignedToId : (assignedTo?.id ?? null)
 
-  // Keep the saved assignee selectable even if they're no longer listed (e.g.
-  // deleted since), so the trigger can still show their name.
+  // Keep the saved assignee as an item even if they're not listed (deleted
+  // since, or the AI agent, which only auto-resolution assigns), so the
+  // trigger can still show their name; it's disabled as the server won't
+  // accept them.
   const options = assignees.data ?? []
-  const missingCurrent = assignedTo && !options.some((user) => user.id === assignedTo.id) ? [assignedTo] : []
+  const missingCurrent = assignedTo && !options.some((user) => user.id === assignedTo.id) ? assignedTo : null
 
   return (
     <div className="space-y-1.5">
@@ -39,7 +41,12 @@ export function AssigneeSelect({ ticketId, assignedTo }: Props) {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-          {[...missingCurrent, ...options].map((user) => (
+          {missingCurrent && (
+            <SelectItem value={missingCurrent.id} disabled>
+              {missingCurrent.name}
+            </SelectItem>
+          )}
+          {options.map((user) => (
             <SelectItem key={user.id} value={user.id}>
               {user.name}
             </SelectItem>

@@ -77,23 +77,22 @@ function TicketDetailView({ ticket }: { ticket: TicketDetail }) {
       <div className="min-w-0 space-y-6">
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground">Ticket #{ticket.id}</p>
-          <h1 className="text-2xl font-[family-name:Arial,Helvetica,sans-serif] font-bold break-words">{ticket.subject}</h1>
-          <p className="text-sm text-muted-foreground">Received {formatDateTime(ticket.createdAt)}</p>
+          <h1 className="text-2xl font-semibold tracking-tight break-words">{ticket.subject}</h1>
         </div>
 
+        {/* The opening email, as a letter. */}
         <Card>
-          <CardHeader>
-            <CardTitle>
+          <CardHeader className="border-b">
+            <CardTitle className="break-words">
               {ticket.senderName} <span className="font-normal text-muted-foreground">&lt;{ticket.senderEmail}&gt;</span>
             </CardTitle>
+            <p className="text-sm text-muted-foreground">Received {formatDateTime(ticket.createdAt)}</p>
           </CardHeader>
           <CardContent>
             {/* Plain-text body; bodyHtml is untrusted and isn't sent to the client. */}
-            <p className="text-sm font-[family-name:Arial,Helvetica,sans-serif] font-bold whitespace-pre-wrap break-words">{ticket.body}</p>
+            <p className="max-w-[70ch] font-serif text-base leading-7 whitespace-pre-wrap break-words">{ticket.body}</p>
           </CardContent>
         </Card>
-
-        <TicketSummary ticketId={ticket.id} />
 
         <section aria-labelledby="replies-heading" className="space-y-4">
           <h2 id="replies-heading" className="text-lg font-semibold">
@@ -104,23 +103,26 @@ function TicketDetailView({ ticket }: { ticket: TicketDetail }) {
         </section>
       </div>
 
-      <aside aria-label="Ticket properties">
-        <Card>
-          <CardContent>
-            <dl className="space-y-4 text-sm">
-              <Field label="Status">
-                <StatusSelect ticketId={ticket.id} status={ticket.status} />
-              </Field>
-              <Field label="Category">
-                <CategorySelect ticketId={ticket.id} category={ticket.category} />
-              </Field>
-              <Field label="Assigned to">
-                <AssigneeSelect ticketId={ticket.id} assignedTo={ticket.assignedTo} />
-              </Field>
-            </dl>
-          </CardContent>
-        </Card>
-      </aside>
+      <div className="space-y-6 lg:sticky lg:top-8">
+        <aside aria-label="Ticket properties">
+          <Card>
+            <CardContent>
+              <dl className="space-y-4 text-sm">
+                <Field label="Status">
+                  <StatusSelect ticketId={ticket.id} status={ticket.status} />
+                </Field>
+                <Field label="Category">
+                  <CategorySelect ticketId={ticket.id} category={ticket.category} />
+                </Field>
+                <Field label="Assigned to">
+                  <AssigneeSelect ticketId={ticket.id} assignedTo={ticket.assignedTo} />
+                </Field>
+              </dl>
+            </CardContent>
+          </Card>
+        </aside>
+        <TicketSummary ticketId={ticket.id} />
+      </div>
     </div>
   )
 }
