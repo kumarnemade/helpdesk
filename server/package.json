@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "bun run --watch src/index.ts",
-    "start": "bun run src/index.ts",
+    "dev": "bun run --watch --preload ./src/instrument.ts src/index.ts",
+    "start": "bun run --preload ./src/instrument.ts src/index.ts",
     "build": "bun build src/index.ts --target bun --outdir dist",
     "typecheck": "tsc --noEmit",
     "db:generate": "bun --bun prisma generate",
@@ -15,13 +15,14 @@
     "db:seed:tickets": "bun --bun prisma/seed-tickets.ts",
     "db:seed:ai-agent": "bun --bun prisma/seed-ai-agent.ts",
     "db:test:reset": "NODE_ENV=test bun prisma/reset-test-db.ts",
-    "test:server": "bun run db:test:reset && NODE_ENV=test bun run src/index.ts",
+    "test:server": "bun run db:test:reset && NODE_ENV=test bun run --preload ./src/instrument.ts src/index.ts",
     "postinstall": "bun --bun prisma generate"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.104",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
+    "@sentry/bun": "^11.9.0",
     "ai": "^7.0.152",
     "better-auth": "^1.7.10",
     "core": "workspace:*",

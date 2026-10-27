@@ -62,6 +62,7 @@
 ## Phase 8: Polish & Deployment
 
 - [ ] Add input validation and error handling across all endpoints
+- [x] Error reporting with Sentry — server (`@sentry/bun`: 5xx responses, failed pg-boss jobs, pg-boss/IMAP errors, crashes) and client (`@sentry/react`: React render errors); optional via `SENTRY_DSN` / `VITE_SENTRY_DSN`; no source map upload yet
 - [ ] Add loading states and error states on the frontend
 - [ ] Write Dockerfile for server and client
 - [ ] Set up Docker Compose for local development

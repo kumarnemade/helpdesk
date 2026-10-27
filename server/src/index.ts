@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/bun";
 import { aiConfigured } from "./ai";
 import { findAiAgentId } from "./aiAgent";
 import { app } from "./app";
@@ -13,6 +14,7 @@ import {
   CLASSIFY_TICKET_QUEUE,
   POLL_GMAIL_INBOX_CRON,
   POLL_GMAIL_INBOX_QUEUE,
+  reportJobErrors,
   SEND_REPLY_EMAIL_QUEUE,
   startQueue,
 } from "./queue";
@@ -24,15 +26,9 @@ const port = Number(process.env.PORT ?? 3000);
 // no workers either.
 await startQueue();
 if (aiConfigured) {
-  await boss.work(CLASSIFY_TICKET_QUEUE, async ([job]) => {
-    if (job) await classifyTicketJob(job.data, job.signal);
-  });
-  await boss.work(AUTO_RESOLVE_TICKET_QUEUE, async ([job]) => {
-    if (job) await autoResolveTicketJob(job.data, job.signal);
-  });
-  await boss.work(AUTO_RESOLVE_TICKET_FAILED_QUEUE, async ([job]) => {
-    if (job) await autoResolveTicketFailedJob(job.data);
-  });
+  await boss.work(CLASSIFY_TICKET_QUEUE, reportJobErrors(CLASSIFY_TICKET_QUEUE, (job) => classifyTicketJob(job.data, job.signal)));
+  await boss.work(AUTO_RESOLVE_TICKET_QUEUE, reportJobErrors(AUTO_RESOLVE_TICKET_QUEUE, (job) => autoResolveTicketJob(job.data, job.signal)));
+  await boss.work(AUTO_RESOLVE_TICKET_FAILED_QUEUE, reportJobErrors(AUTO_RESOLVE_TICKET_FAILED_QUEUE, (job) => autoResolveTicketFailedJob(job.data)));
   if (!(await findAiAgentId())) {
     console.warn("No AI agent user: new tickets won't be assigned during auto-resolution (run `bun run db:seed:ai-agent`).");
   }
@@ -45,12 +41,8 @@ if (aiConfigured) {
 // Gmail: replies are emailed to customers and the inbox is read every minute.
 // Without the settings the schedule is removed, so no polls pile up unworked.
 if (emailConfigured) {
-  await boss.work(SEND_REPLY_EMAIL_QUEUE, async ([job]) => {
-    if (job) await sendReplyEmailJob(job.data);
-  });
-  await boss.work(POLL_GMAIL_INBOX_QUEUE, async ([job]) => {
-    if (job) await pollGmailInboxJob(job.signal);
-  });
+  await boss.work(SEND_REPLY_EMAIL_QUEUE, reportJobErrors(SEND_REPLY_EMAIL_QUEUE, (job) => sendReplyEmailJob(job.data)));
+  await boss.work(POLL_GMAIL_INBOX_QUEUE, reportJobErrors(POLL_GMAIL_INBOX_QUEUE, (job) => pollGmailInboxJob(job.signal)));
   await boss.schedule(POLL_GMAIL_INBOX_QUEUE, POLL_GMAIL_INBOX_CRON);
   console.log("Email: on (Gmail inbox read every minute, replies emailed to customers).");
 } else {
@@ -67,6 +59,8 @@ async function shutdown() {
   // Waits (up to 30 s) for running jobs to finish, then closes pg-boss's pool.
   await boss.stop();
   await prisma.$disconnect();
+  // Sends any queued Sentry events (waits up to 2 s).
+  await Sentry.close(2000);
   process.exit(0);
 }
 

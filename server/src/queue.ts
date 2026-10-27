@@ -1,11 +1,30 @@
-import { PgBoss } from "pg-boss";
+import * as Sentry from "@sentry/bun";
+import { type Job, PgBoss } from "pg-boss";
 
 // Background jobs, stored in Postgres by pg-boss in its own `pgboss` schema
 // (created and migrated by pg-boss on start; Prisma only manages `public`).
 // Jobs survive server restarts and failed jobs are retried.
 export const boss = new PgBoss({ connectionString: process.env.DATABASE_URL, schema: "pgboss" });
 
-boss.on("error", (err) => console.error("pg-boss error:", err));
+boss.on("error", (err) => {
+  console.error("pg-boss error:", err);
+  Sentry.captureException(err);
+});
+
+// Wraps a worker so a failed job is reported to Sentry, tagged with its queue
+// and job id, then rethrown so pg-boss still retries it. Each failed attempt
+// is reported; Sentry groups them into one issue.
+export function reportJobErrors(queue: string, handler: (job: Job<unknown>) => Promise<void>) {
+  return async ([job]: Job<unknown>[]) => {
+    if (!job) return;
+    try {
+      await handler(job);
+    } catch (err) {
+      Sentry.captureException(err, { tags: { queue, jobId: job.id } });
+      throw err;
+    }
+  };
+}
 
 // AI category for a new ticket. Payload: { ticketId }.
 export const CLASSIFY_TICKET_QUEUE = "classify-ticket";

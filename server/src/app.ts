@@ -1,4 +1,5 @@
 import { STATUS_CODES } from "node:http";
+import * as Sentry from "@sentry/bun";
 import express, { type ErrorRequestHandler } from "express";
 import helmet from "helmet";
 import { toNodeHandler } from "better-auth/node";
@@ -62,7 +63,10 @@ app.use("/api", (_req, res) => {
 // body-parser's JSON syntax errors) never reach clients.
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   const status: number = err.status ?? err.statusCode ?? 500;
-  if (status >= 500) console.error(err);
+  if (status >= 500) {
+    console.error(err);
+    Sentry.captureException(err);
+  }
   res.status(status).json({ error: STATUS_CODES[status] ?? "Error" });
 };
 app.use(errorHandler);

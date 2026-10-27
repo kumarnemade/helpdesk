@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/bun";
 import { MAX_EMAIL_BODY_LENGTH, MAX_EMAIL_HTML_LENGTH, MAX_EMAIL_REFERENCES, receiveEmailSchema } from "core";
 import { ImapFlow } from "imapflow";
 import { simpleParser, type ParsedMail } from "mailparser";
@@ -78,7 +79,10 @@ export async function pollGmailInboxJob(signal: AbortSignal) {
     logger: false,
   });
   // Without a listener, a dropped connection would crash the server.
-  client.on("error", (err) => console.error("Gmail inbox: IMAP error:", err));
+  client.on("error", (err) => {
+    console.error("Gmail inbox: IMAP error:", err);
+    Sentry.captureException(err);
+  });
   const abort = () => client.close();
   signal.addEventListener("abort", abort, { once: true });
 
