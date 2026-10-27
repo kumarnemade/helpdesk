@@ -1,5 +1,6 @@
 import { createUserSchema, userIdParamsSchema } from "core";
 import { Router } from "express";
+import { AI_AGENT_EMAIL } from "../aiAgent";
 import { auth } from "../auth";
 import { prisma } from "../db";
 
@@ -10,7 +11,8 @@ const userSelect = { id: true, name: true, email: true, role: true, createdAt: t
 
 usersRouter.get("/", async (_req, res) => {
   const users = await prisma.user.findMany({
-    where: { deletedAt: null },
+    // The AI agent is system-owned; hiding it keeps it from being deleted by accident.
+    where: { deletedAt: null, email: { not: AI_AGENT_EMAIL } },
     select: userSelect,
     orderBy: { createdAt: "asc" },
   });
@@ -77,9 +79,9 @@ usersRouter.delete("/:id", async (req, res) => {
 
   const user = await prisma.user.findFirst({
     where: { id, deletedAt: null },
-    select: { role: true },
+    select: { role: true, email: true },
   });
-  if (!user) {
+  if (!user || user.email === AI_AGENT_EMAIL) {
     res.status(404).json({ error: "User not found" });
     return;
   }
