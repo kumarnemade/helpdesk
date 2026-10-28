@@ -5,6 +5,8 @@ client), with a free Supabase Postgres database. Gmail is read over IMAP and
 replies are sent through the Gmail API, because Render's free plan blocks SMTP
 ports. Total cost: $0.
 
+The production instance runs at https://helpdesk-44c4.onrender.com.
+
 | Piece | Where | Config |
 |---|---|---|
 | App (API + client) | Render free web service | `Dockerfile`, `render.yaml` |
@@ -150,3 +152,32 @@ If something fails, check the service's **Logs** tab on Render. A
 `Gmail OAuth token request failed (400): … invalid_grant` error means the
 refresh token was revoked or expired (e.g. the app was still in "Testing"):
 publish the app (step 3.5) and create a new refresh token (step 3.7).
+
+## Updating the app
+
+- Every push (or merged pull request) to the default branch (`master`)
+  deploys automatically. Each start runs `prisma migrate deploy` first, so new
+  migrations are applied without a manual step.
+- `server/knowledge-base.md` is read once at startup, so edits to it go live
+  with the next deploy.
+- Changing an environment variable in the Render dashboard restarts the
+  service. `VITE_SENTRY_DSN` is baked into the client at build time, so change
+  it with **Manual Deploy → Deploy latest commit**.
+
+## Troubleshooting
+
+- **The first request takes about a minute**: the service was asleep. Check
+  the pinger from step 6 is running.
+- **`Can't reach database server` / migrations fail at start**: `DATABASE_URL`
+  must be the Supabase **Session pooler** string (port 5432), not the direct
+  connection or the transaction pooler (port 6543). Check the password is
+  URL-encoded.
+- **Sign-in says "Too many requests"**: production limits sign-in to 5
+  attempts per minute per IP. Wait a minute and try again.
+- **Emails aren't turning into tickets**: check `GMAIL_USER` and
+  `GMAIL_APP_PASSWORD`, and that the email is still unread in the inbox (mail
+  opened in Gmail before a poll is skipped). Automated mail (auto-replies,
+  mailing lists, `no-reply` senders) is ignored on purpose.
+- **Tickets aren't classified or auto-resolved**: set
+  `GOOGLE_GENERATIVE_AI_API_KEY`. Without it, new tickets go straight to the
+  list uncategorised.
