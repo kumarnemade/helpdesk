@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router'
+import { Link, NavLink } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { DEFAULT_TICKET_PAGE_SIZE, type ListTicketsQuery } from 'core'
 import { InboxIcon, LayoutDashboardIcon, LogOutIcon, UsersIcon } from 'lucide-react'
@@ -25,7 +25,6 @@ const LINK_CLASSES =
 // The app's navigation: a navy bar across the top (the `sidebar` theme
 // tokens), whose links wrap onto a second row on narrow screens.
 export function NavBar({ user }: { user: SessionUser }) {
-  const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
   const { data: openTickets } = useQuery({
     queryKey: ticketsListQueryKey(OPEN_TICKETS_QUERY),
@@ -37,7 +36,9 @@ export function NavBar({ user }: { user: SessionUser }) {
     await authClient.signOut()
     // Drop cached server data so the next user never sees the previous one's.
     queryClient.clear()
-    navigate('/login', { replace: true })
+    // No navigate here: useSession still holds the old session for a moment,
+    // so /login would bounce back to the dashboard (which then 401s).
+    // ProtectedLayout redirects once Better Auth clears the session.
   }
 
   return (
