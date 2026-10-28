@@ -116,7 +116,7 @@ describe('NavBar', () => {
     expect(within(screen.getByRole('navigation')).getByRole('button', { name: 'Theme' })).toBeInTheDocument()
   })
 
-  it('signs out and clears cached server data without navigating itself', async () => {
+  it('signs out without navigating or clearing the cache itself', async () => {
     mockOpenTickets()
     const user = userEvent.setup()
     const clear = vi.spyOn(queryClient, 'clear')
@@ -124,10 +124,10 @@ describe('NavBar', () => {
 
     await user.click(screen.getByRole('button', { name: 'Sign out' }))
 
-    await waitFor(() => expect(clear).toHaveBeenCalledTimes(1))
-    expect(auth.signOut).toHaveBeenCalledTimes(1)
-    // ProtectedLayout redirects once the session is gone; navigating here
-    // would let /login bounce back to the dashboard on the stale session.
+    await waitFor(() => expect(auth.signOut).toHaveBeenCalledTimes(1))
+    // ProtectedLayout redirects and clears the cache once the session is gone;
+    // doing either here would flash a 401 on the still-mounted page.
+    expect(clear).not.toHaveBeenCalled()
     expect(screen.queryByText('Login page')).not.toBeInTheDocument()
     clear.mockRestore()
   })
