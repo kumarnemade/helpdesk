@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -116,7 +116,7 @@ describe('NavBar', () => {
     expect(within(screen.getByRole('navigation')).getByRole('button', { name: 'Theme' })).toBeInTheDocument()
   })
 
-  it('signs out, clears cached server data and goes to the login page', async () => {
+  it('signs out and clears cached server data without navigating itself', async () => {
     mockOpenTickets()
     const user = userEvent.setup()
     const clear = vi.spyOn(queryClient, 'clear')
@@ -124,9 +124,11 @@ describe('NavBar', () => {
 
     await user.click(screen.getByRole('button', { name: 'Sign out' }))
 
-    expect(await screen.findByText('Login page')).toBeInTheDocument()
+    await waitFor(() => expect(clear).toHaveBeenCalledTimes(1))
     expect(auth.signOut).toHaveBeenCalledTimes(1)
-    expect(clear).toHaveBeenCalledTimes(1)
+    // ProtectedLayout redirects once the session is gone; navigating here
+    // would let /login bounce back to the dashboard on the stale session.
+    expect(screen.queryByText('Login page')).not.toBeInTheDocument()
     clear.mockRestore()
   })
 
