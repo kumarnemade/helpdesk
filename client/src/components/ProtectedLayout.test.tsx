@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionUser } from '@/lib/auth-client'
+import { queryClient } from '@/lib/query-client'
 import { renderWithQueryClient } from '@/test/render'
 import { ProtectedLayout } from './ProtectedLayout'
 
@@ -62,6 +63,14 @@ describe('ProtectedLayout', () => {
     expect(screen.getByRole('navigation')).toBeInTheDocument()
   })
 
+  it('keeps cached server data while signed in', () => {
+    const clear = vi.spyOn(queryClient, 'clear')
+    auth.useSession.mockReturnValue({ data: { user, session: {} }, isPending: false })
+    renderWithQueryClient(routes())
+
+    expect(clear).not.toHaveBeenCalled()
+  })
+
   it('redirects to the login page when there is no session', () => {
     auth.useSession.mockReturnValue({ data: null, isPending: false })
     renderWithQueryClient(routes())
@@ -69,7 +78,8 @@ describe('ProtectedLayout', () => {
     expect(screen.getByText('Login page')).toBeInTheDocument()
   })
 
-  it('redirects to the login page once the session is cleared (sign-out)', async () => {
+  it('redirects to the login page and clears cached data once the session is cleared (sign-out)', async () => {
+    const clear = vi.spyOn(queryClient, 'clear')
     auth.useSession.mockReturnValue({ data: { user, session: {} }, isPending: false })
     // Own provider so rerender keeps it.
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -82,5 +92,6 @@ describe('ProtectedLayout', () => {
 
     expect(await screen.findByText('Login page')).toBeInTheDocument()
     expect(screen.queryByText('Dashboard page')).not.toBeInTheDocument()
+    expect(clear).toHaveBeenCalledTimes(1)
   })
 })

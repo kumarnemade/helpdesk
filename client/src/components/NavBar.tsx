@@ -6,7 +6,6 @@ import { InboxIcon, LayoutDashboardIcon, LogOutIcon, UsersIcon } from 'lucide-re
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { authClient, type SessionUser } from '@/lib/auth-client'
-import { queryClient } from '@/lib/query-client'
 import { fetchTickets, ticketsListQueryKey } from '@/lib/tickets'
 
 // Same query as the tickets list filtered to Open, so the two share a cache
@@ -33,12 +32,11 @@ export function NavBar({ user }: { user: SessionUser }) {
 
   async function handleSignOut() {
     setSigningOut(true)
+    // No navigate or cache clear here: useSession still holds the old session
+    // for a moment, so /login would bounce back, and a cleared cache would make
+    // the still-mounted page refetch (and 401). ProtectedLayout redirects and
+    // clears the cache once Better Auth clears the session.
     await authClient.signOut()
-    // Drop cached server data so the next user never sees the previous one's.
-    queryClient.clear()
-    // No navigate here: useSession still holds the old session for a moment,
-    // so /login would bounce back to the dashboard (which then 401s).
-    // ProtectedLayout redirects once Better Auth clears the session.
   }
 
   return (
