@@ -52,7 +52,7 @@ e2e/      Playwright end-to-end tests
 ### Prerequisites
 
 - [Bun](https://bun.sh)
-- PostgreSQL running locally (default database `helpdesk` on `localhost:5432`)
+- PostgreSQL — either installed locally (database `helpdesk` on `localhost:5432`) or run with [Docker](https://www.docker.com/) (see below)
 
 ### Setup
 
@@ -65,7 +65,13 @@ cp server/.env.example server/.env
 #    then edit server/.env — at least DATABASE_URL, BETTER_AUTH_SECRET,
 #    INBOUND_EMAIL_SECRET and SEED_ADMIN_PASSWORD (12+ characters)
 
-# 3. Set up the database (run from server/)
+# 3. Optional: start Postgres in Docker instead of a local install
+#    (creates helpdesk and helpdesk_test; set POSTGRES_PORT=5433 if 5432 is taken)
+docker compose up -d
+#    and in server/.env use
+#    DATABASE_URL="postgresql://postgres:postgres@localhost:5432/helpdesk?schema=public"
+
+# 4. Set up the database (run from server/)
 cd server
 bun run db:migrate          # apply migrations
 bun run db:generate         # generate the Prisma client
@@ -74,11 +80,23 @@ bun run db:seed:ai-agent    # create the "AI" agent user
 bun run db:seed:tickets     # optional: 100 demo tickets
 cd ..
 
-# 4. Start API (http://localhost:3000) and client (http://localhost:5173)
+# 5. Start API (http://localhost:3000) and client (http://localhost:5173)
 bun run dev
 ```
 
 Sign in at http://localhost:5173 with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`.
+
+### Docker Compose
+
+| Command | Description |
+|---|---|
+| `docker compose up -d` | Start Postgres (data kept in the `helpdesk-db` volume) |
+| `docker compose down` | Stop it, keeping the data |
+| `docker compose down -v` | Stop it and delete the data |
+| `docker compose --profile app up --build` | Also run the production image (API + built client) on http://localhost:3000, using the secrets in `server/.env` |
+
+The `app` profile uses everything in `server/.env`, so if Gmail is configured
+there it reads and replies from that inbox, just like `bun run dev`.
 
 ### Environment variables
 

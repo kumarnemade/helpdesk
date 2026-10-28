@@ -65,6 +65,6 @@
 - [x] Error reporting with Sentry — server (`@sentry/bun`: 5xx responses, failed pg-boss jobs, pg-boss/IMAP errors, crashes) and client (`@sentry/react`: React render errors); optional via `SENTRY_DSN` / `VITE_SENTRY_DSN`; no source map upload yet
 - [x] Add loading states and error states on the frontend — skeletons, empty states and `role="alert"` errors, covered by component tests
 - [x] Write Dockerfile for server and client — one root `Dockerfile` builds the client and runs the server (which serves it), applying migrations on start
-- [ ] Set up Docker Compose for local development
+- [x] Set up Docker Compose for local development — `docker-compose.yml` runs Postgres (with `helpdesk` and `helpdesk_test`) for `bun run dev`; `--profile app` also runs the production image on http://localhost:3000
 - [x] Write deployment configuration — Render free (Docker, `render.yaml`) + Supabase free Postgres, replies via the Gmail API; guide in `DEPLOYMENT.md`
 - [x] Deploy to production — live at https://helpdesk-44c4.onrender.com
