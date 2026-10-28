@@ -1,0 +1,50 @@
+# Local development. By default this runs only PostgreSQL; run the API and
+# client on the host with `bun run dev` (fast reloads):
+#
+#   docker compose up -d                      # start Postgres
+#   docker compose down                       # stop it (data is kept)
+#   docker compose down -v                    # stop it and delete the data
+#   docker compose --profile app up --build   # also run the production image
+#
+# Set POSTGRES_PORT (e.g. 5433) if a local Postgres already uses 5432.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: helpdesk
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - helpdesk-db:/var/lib/postgresql/data
+      # Runs once, when the volume is first created: adds helpdesk_test for e2e.
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d helpdesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # The same image Render runs (API serving the built client) on
+  # http://localhost:3000. Secrets come from server/.env; the database and
+  # origins are overridden to point at this stack.
+  app:
+    profiles: ["app"]
+    build: .
+    env_file:
+      - path: server/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/helpdesk?schema=public
+      PORT: "3000"
+      CLIENT_ORIGIN: http://localhost:3000
+      BETTER_AUTH_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  helpdesk-db:
